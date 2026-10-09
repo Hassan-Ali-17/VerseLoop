@@ -17,6 +17,17 @@ class StaffCompletedOrdersScreen extends ConsumerWidget {
 
     return Scaffold(
       appBar: AppBar(
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          tooltip: 'Back to Dashboard',
+          onPressed: () {
+            if (context.canPop()) {
+              context.pop();
+            } else {
+              context.go('/staff/dashboard');
+            }
+          },
+        ),
         title: const Text('Completed Orders History'),
       ),
       body: FutureBuilder<List<OrderModel>>(

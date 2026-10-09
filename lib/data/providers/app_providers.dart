@@ -283,13 +283,107 @@ class ActiveOrdersNotifier extends AsyncNotifier<List<OrderModel>> {
 
   Future<void> updateStatus(String orderId, OrderStatus status) async {
     final repo = ref.read(orderRepositoryProvider);
-    await repo.updateOrderStatus(orderId, status);
+    final updated = await repo.updateOrderStatus(orderId, status);
     await refreshOrders();
+    ref.read(activeOrdersProvider.notifier).refreshOrders();
+    ref.read(completedOrdersProvider.notifier).refreshOrders();
+    try {
+      ref.read(orderTrackingProvider(orderId).notifier).updateWithOrder(updated);
+    } catch (_) {}
   }
 }
 
 final activeOrdersProvider = AsyncNotifierProvider<ActiveOrdersNotifier, List<OrderModel>>(ActiveOrdersNotifier.new);
 final staffOrdersProvider = AsyncNotifierProvider<ActiveOrdersNotifier, List<OrderModel>>(ActiveOrdersNotifier.new);
+
+// ----------------------------------------------------
+// COMPLETED ORDERS PROVIDER
+// ----------------------------------------------------
+class CompletedOrdersNotifier extends AsyncNotifier<List<OrderModel>> {
+  StreamSubscription? _wsSub;
+
+  @override
+  Future<List<OrderModel>> build() async {
+    final repo = ref.watch(orderRepositoryProvider);
+    final wsClient = ref.watch(realtimeClientProvider);
+
+    _wsSub?.cancel();
+    _wsSub = wsClient.events.listen((event) {
+      if (event.event == 'ORDER_STATUS_CHANGED' || event.event == 'ORDER_CREATED') {
+        refreshOrders();
+      }
+    });
+    ref.onDispose(() => _wsSub?.cancel());
+
+    return await repo.getCompletedOrders();
+  }
+
+  Future<void> refreshOrders() async {
+    try {
+      final repo = ref.read(orderRepositoryProvider);
+      final list = await repo.getCompletedOrders();
+      state = AsyncValue.data(list);
+    } catch (e, st) {
+      state = AsyncValue.error(e, st);
+    }
+  }
+}
+
+final completedOrdersProvider = AsyncNotifierProvider<CompletedOrdersNotifier, List<OrderModel>>(CompletedOrdersNotifier.new);
+
+// ----------------------------------------------------
+// SINGLE ORDER REAL-TIME TRACKING PROVIDER
+// ----------------------------------------------------
+class OrderTrackingNotifier extends AsyncNotifier<OrderModel?> {
+  final String orderId;
+  OrderTrackingNotifier(this.orderId);
+
+  StreamSubscription? _wsSub;
+
+  @override
+  Future<OrderModel?> build() async {
+    final repo = ref.watch(orderRepositoryProvider);
+    final wsClient = ref.watch(realtimeClientProvider);
+
+    _wsSub?.cancel();
+    _wsSub = wsClient.events.listen((event) {
+      if (event.event == 'ORDER_STATUS_CHANGED') {
+        final evOrderId = event.data?['orderId'] ?? event.data?['order']?['id'];
+        if (evOrderId == orderId) {
+          if (event.data?['order'] != null && event.data?['order'] is Map<String, dynamic>) {
+            try {
+              final updated = OrderModel.fromJson(event.data!['order'] as Map<String, dynamic>);
+              state = AsyncValue.data(updated);
+              return;
+            } catch (_) {}
+          }
+          refresh();
+        }
+      }
+    });
+    ref.onDispose(() => _wsSub?.cancel());
+
+    return await repo.getOrderById(orderId);
+  }
+
+  void updateWithOrder(OrderModel order) {
+    state = AsyncValue.data(order);
+  }
+
+  Future<void> refresh() async {
+    try {
+      final repo = ref.read(orderRepositoryProvider);
+      final order = await repo.getOrderById(orderId);
+      state = AsyncValue.data(order);
+    } catch (e, st) {
+      state = AsyncValue.error(e, st);
+    }
+  }
+}
+
+final orderTrackingProvider = AsyncNotifierProvider.family<OrderTrackingNotifier, OrderModel?, String>(
+  (arg) => OrderTrackingNotifier(arg),
+);
 
 // ----------------------------------------------------
 // INVENTORY STATE PROVIDER (AsyncNotifier)

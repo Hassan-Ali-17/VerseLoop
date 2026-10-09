@@ -47,12 +47,14 @@ class InventoryItem {
 
   factory InventoryItem.fromJson(Map<String, dynamic> json) {
     return InventoryItem(
-      dishId: json['dishId'] as String,
-      dishName: json['dishName'] as String,
-      category: json['category'] as String,
-      availablePortions: json['availablePortions'] as int,
-      isAvailable: json['isAvailable'] as bool,
-      updatedAt: DateTime.parse(json['updatedAt'] as String),
+      dishId: json['dishId'] as String? ?? 'dish',
+      dishName: json['dishName'] as String? ?? 'Gourmet Dish',
+      category: json['category'] as String? ?? 'Main Course',
+      availablePortions: json['availablePortions'] as int? ?? 0,
+      isAvailable: json['isAvailable'] as bool? ?? true,
+      updatedAt: json['updatedAt'] != null
+          ? DateTime.parse(json['updatedAt'] as String)
+          : DateTime.now(),
     );
   }
 }

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import '../../app/theme/ember_theme.dart';
 import '../../core/widgets/ember_badge.dart';
 import '../../data/providers/app_providers.dart';
@@ -14,6 +15,17 @@ class StaffInventoryScreen extends ConsumerWidget {
 
     return Scaffold(
       appBar: AppBar(
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          tooltip: 'Back to Dashboard',
+          onPressed: () {
+            if (context.canPop()) {
+              context.pop();
+            } else {
+              context.go('/staff/dashboard');
+            }
+          },
+        ),
         title: const Text('Menu & Portion Inventory Management'),
         actions: [
           IconButton(

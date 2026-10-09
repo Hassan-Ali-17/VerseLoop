@@ -3,8 +3,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../app/theme/ember_theme.dart';
 import '../../core/formatting/currency_formatter.dart';
+import '../../core/formatting/date_formatter.dart';
+import '../../core/widgets/ember_badge.dart';
 import '../../core/widgets/ember_button.dart';
 import '../../data/providers/app_providers.dart';
+import '../../models/order.dart';
 
 class CartScreen extends ConsumerWidget {
   const CartScreen({super.key});
@@ -12,6 +15,11 @@ class CartScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final cartState = ref.watch(cartProvider);
+    final activeOrdersAsync = ref.watch(activeOrdersProvider);
+    final completedOrdersAsync = ref.watch(completedOrdersProvider);
+
+    final hasActive = (activeOrdersAsync.value ?? []).isNotEmpty;
+    final hasCompleted = (completedOrdersAsync.value ?? []).isNotEmpty;
 
     return Scaffold(
       appBar: AppBar(
@@ -28,6 +36,14 @@ class CartScreen extends ConsumerWidget {
         ),
         title: Text('Your Order Cart', style: Theme.of(context).textTheme.headlineMedium),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            tooltip: 'Refresh Orders',
+            onPressed: () {
+              ref.read(activeOrdersProvider.notifier).refreshOrders();
+              ref.read(completedOrdersProvider.notifier).refreshOrders();
+            },
+          ),
           if (cartState.items.isNotEmpty)
             TextButton(
               onPressed: () => ref.read(cartProvider.notifier).clearCart(),
@@ -37,25 +53,13 @@ class CartScreen extends ConsumerWidget {
         ],
       ),
       body: cartState.items.isEmpty
-          ? Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Icon(Icons.shopping_bag_outlined, size: 64, color: EmberColors.textMuted),
-                  const SizedBox(height: 16),
-                  Text('Your cart is empty', style: Theme.of(context).textTheme.headlineMedium),
-                  const SizedBox(height: 8),
-                  const Text('Add gourmet dishes from our 3D Studio menu.',
-                      style: TextStyle(color: EmberColors.textMuted)),
-                  const SizedBox(height: 24),
-                  EmberButton(
-                    label: 'Browse Menu',
-                    icon: Icons.restaurant_menu,
-                    onPressed: () => context.go('/menu'),
-                  ),
-                ],
-              ),
-            )
+          ? (hasActive
+              ? _buildActiveOrdersView(context, activeOrdersAsync.value!)
+              : (hasCompleted
+                  ? _buildCompletedOrdersView(context, completedOrdersAsync.value!)
+                  : (activeOrdersAsync.isLoading || completedOrdersAsync.isLoading
+                      ? const Center(child: CircularProgressIndicator(color: EmberColors.primary))
+                      : _buildEmptyPlaceholder(context))))
           : LayoutBuilder(
               builder: (context, constraints) {
                 final isWide = constraints.maxWidth > 900;
@@ -218,6 +222,241 @@ class CartScreen extends ConsumerWidget {
           EmberButton(
             label: 'Proceed to Checkout →',
             onPressed: () => context.go('/checkout'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildEmptyPlaceholder(BuildContext context) {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          const Icon(Icons.shopping_bag_outlined, size: 64, color: EmberColors.textMuted),
+          const SizedBox(height: 16),
+          Text('Your cart is empty', style: Theme.of(context).textTheme.headlineMedium),
+          const SizedBox(height: 8),
+          const Text('Add gourmet dishes from our 3D Studio menu.',
+              style: TextStyle(color: EmberColors.textMuted)),
+          const SizedBox(height: 24),
+          EmberButton(
+            label: 'Browse Menu',
+            icon: Icons.restaurant_menu,
+            onPressed: () => context.go('/menu'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildActiveOrdersView(BuildContext context, List<OrderModel> orders) {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: EmberColors.primary.withOpacity(0.12),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: EmberColors.primary.withOpacity(0.4)),
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.check_circle, color: EmberColors.primary, size: 28),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: const [
+                      Text(
+                        'Order Placed & In Kitchen Preparation!',
+                        style: TextStyle(fontWeight: FontWeight.bold, color: EmberColors.primary, fontSize: 15),
+                      ),
+                      SizedBox(height: 2),
+                      Text(
+                        'Your placed order is being prepared by our kitchen staff. Track live progress below.',
+                        style: TextStyle(color: EmberColors.textMuted, fontSize: 12),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 24),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text('Active Kitchen Orders (${orders.length})', style: Theme.of(context).textTheme.titleLarge),
+              OutlinedButton.icon(
+                icon: const Icon(Icons.add, size: 16),
+                label: const Text('Add More Items'),
+                onPressed: () => context.go('/menu'),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          ...orders.map((order) => _buildActiveOrderCard(context, order)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCompletedOrdersView(BuildContext context, List<OrderModel> orders) {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: EmberColors.success.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: EmberColors.success.withValues(alpha: 0.4)),
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.check_circle, color: EmberColors.success, size: 28),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: const [
+                      Text(
+                        'Order Handed Over & Completed!',
+                        style: TextStyle(fontWeight: FontWeight.bold, color: EmberColors.success, fontSize: 15),
+                      ),
+                      SizedBox(height: 2),
+                      Text(
+                        'Your meal has been handed over. You can review your receipt or track history below.',
+                        style: TextStyle(color: EmberColors.textMuted, fontSize: 12),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 24),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text('Recent Orders (${orders.length})', style: Theme.of(context).textTheme.titleLarge),
+              OutlinedButton.icon(
+                icon: const Icon(Icons.restaurant_menu, size: 16),
+                label: const Text('Order More'),
+                onPressed: () => context.go('/menu'),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          ...orders.map((order) => _buildActiveOrderCard(context, order)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildActiveOrderCard(BuildContext context, OrderModel order) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      decoration: BoxDecoration(
+        color: EmberColors.surface,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: EmberColors.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: EmberColors.surfaceElevated,
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('ORDER #${order.orderNumber}',
+                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: EmberColors.primary)),
+                    const SizedBox(height: 2),
+                    Text(
+                      'Placed by ${order.customerName} • ${DateFormatter.formatTime(order.createdAt)}',
+                      style: const TextStyle(fontSize: 12, color: EmberColors.textMuted),
+                    ),
+                  ],
+                ),
+                EmberBadge.fromOrderStatus(order.status),
+              ],
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                ...order.items.map((item) => Padding(
+                      padding: const EdgeInsets.only(bottom: 8.0),
+                      child: Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: EmberColors.primary.withOpacity(0.15),
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: Text(
+                              '${item.quantity}x',
+                              style: const TextStyle(fontWeight: FontWeight.bold, color: EmberColors.primary, fontSize: 12),
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Text(
+                              item.dish.name,
+                              style: const TextStyle(fontWeight: FontWeight.w600, color: EmberColors.textMain),
+                            ),
+                          ),
+                          Text(
+                            CurrencyFormatter.formatCents(item.totalPriceCents),
+                            style: const TextStyle(color: EmberColors.textMuted, fontSize: 13),
+                          ),
+                        ],
+                      ),
+                    )),
+                const Divider(height: 24),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      'Total: ${CurrencyFormatter.formatCents(order.totalCents)}',
+                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: EmberColors.textMain),
+                    ),
+                    Row(
+                      children: [
+                        OutlinedButton.icon(
+                          icon: const Icon(Icons.receipt_long, size: 16),
+                          label: const Text('Receipt'),
+                          onPressed: () => context.go('/receipt/${order.id}'),
+                        ),
+                        const SizedBox(width: 10),
+                        ElevatedButton.icon(
+                          icon: const Icon(Icons.timeline, size: 16),
+                          label: const Text('Track Order →'),
+                          onPressed: () => context.go('/orders/tracking/${order.id}'),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ],
+            ),
           ),
         ],
       ),

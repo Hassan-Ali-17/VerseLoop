@@ -288,15 +288,21 @@ async def update_order_status(order_id: str, payload: UpdateStatusPayload):
             raise HTTPException(status_code=400, detail=f"Invalid transition: {error_msg}")
         raise HTTPException(status_code=400, detail=f"Status update failed: {error_msg}")
 
+    # Ensure fully formatted order structure for client synchronization
+    try:
+        full_order = await get_order_by_id(order_id)
+    except Exception:
+        full_order = updated_order
+
     # Broadcast ORDER_STATUS_CHANGED event
     await ws_hub.broadcast_event(
         "ORDER_STATUS_CHANGED",
-        {"orderId": order_id, "newStatus": payload.status, "order": updated_order},
+        {"orderId": order_id, "newStatus": payload.status, "order": full_order},
     )
 
     # If cancelled, inventory was restored, so broadcast inventory updates
     if payload.status == "cancelled":
-        items = updated_order.get("items") or []
+        items = full_order.get("items") or []
         for item in items:
             dish_id = item.get("dishId")
             if dish_id:
@@ -311,7 +317,33 @@ async def update_order_status(order_id: str, payload: UpdateStatusPayload):
                         },
                     )
 
-    return updated_order
+    return full_order
+
+@router.post("/reset-data")
+async def reset_all_orders():
+    """Purge test orders and restore inventory stock (for clean testing)."""
+    try:
+        await supabase.delete("order_status_logs", {"order_id": "neq.none"})
+    except Exception:
+        pass
+    try:
+        await supabase.delete("idempotency_records", {"idempotency_key": "neq.none"})
+    except Exception:
+        pass
+    try:
+        await supabase.delete("orders", {"id": "neq.none"})
+    except Exception:
+        pass
+    default_stock = {"d1": 8, "d2": 12, "d3": 5, "d4": 15, "d5": 1}
+    for dish_id, stock in default_stock.items():
+        try:
+            await supabase.patch("inventory", {"dish_id": f"eq.{dish_id}"}, {"available_portions": stock, "is_available": True})
+            await supabase.patch("dishes", {"id": f"eq.{dish_id}"}, {"stock_count": stock, "is_available": True})
+        except Exception:
+            pass
+    await ws_hub.broadcast_event("INVENTORY_UPDATED", {"dishId": "all", "reset": True})
+    await ws_hub.broadcast_event("ORDER_STATUS_CHANGED", {"orderId": "all", "reset": True})
+    return {"status": "ok", "message": "All test orders cleared and inventory reset to default stock."}
 
 @router.get("/{order_id}/receipt")
 async def get_order_receipt(order_id: str):

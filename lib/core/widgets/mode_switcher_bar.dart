@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import '../../app/configuration/app_config.dart';
 import '../../app/theme/ember_theme.dart';
 import '../../data/providers/app_providers.dart';
@@ -45,6 +46,10 @@ class ModeSwitcherBar extends ConsumerWidget {
                     isSelected: currentMode == AppMode.fixture,
                     onTap: () {
                       ref.read(appModeProvider.notifier).setMode(AppMode.fixture);
+                      ref.invalidate(activeOrdersProvider);
+                      ref.invalidate(staffOrdersProvider);
+                      ref.invalidate(completedOrdersProvider);
+                      ref.invalidate(inventoryProvider);
                     },
                   ),
                   _buildModeBtn(
@@ -52,6 +57,10 @@ class ModeSwitcherBar extends ConsumerWidget {
                     isSelected: currentMode == AppMode.connected,
                     onTap: () {
                       ref.read(appModeProvider.notifier).setMode(AppMode.connected);
+                      ref.invalidate(activeOrdersProvider);
+                      ref.invalidate(staffOrdersProvider);
+                      ref.invalidate(completedOrdersProvider);
+                      ref.invalidate(inventoryProvider);
                     },
                   ),
                 ],
@@ -76,6 +85,7 @@ class ModeSwitcherBar extends ConsumerWidget {
                     isSelected: currentRole == UserRole.customer,
                     onTap: () {
                       ref.read(userRoleProvider.notifier).setRole(UserRole.customer);
+                      context.go('/discover');
                     },
                   ),
                   _buildRoleBtn(
@@ -83,9 +93,58 @@ class ModeSwitcherBar extends ConsumerWidget {
                     isSelected: currentRole == UserRole.staff,
                     onTap: () {
                       ref.read(userRoleProvider.notifier).setRole(UserRole.staff);
+                      context.go('/staff/dashboard');
                     },
                   ),
                 ],
+              ),
+            ),
+
+            const SizedBox(width: 16),
+
+            // Reset Test Data Button
+            InkWell(
+              onTap: () async {
+                ref.read(cartProvider.notifier).clearCart();
+                final mode = ref.read(appModeProvider);
+                if (mode == AppMode.connected) {
+                  try {
+                    await ref.read(apiClientProvider).post('/orders/reset-data');
+                  } catch (_) {}
+                }
+                ref.invalidate(activeOrdersProvider);
+                ref.invalidate(staffOrdersProvider);
+                ref.invalidate(completedOrdersProvider);
+                ref.invalidate(inventoryProvider);
+
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Test data reset! Cart and order queues are clean.'),
+                      duration: Duration(seconds: 2),
+                    ),
+                  );
+                }
+              },
+              borderRadius: BorderRadius.circular(6),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                decoration: BoxDecoration(
+                  color: EmberColors.background,
+                  borderRadius: BorderRadius.circular(6),
+                  border: Border.all(color: EmberColors.border),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: const [
+                    Icon(Icons.cleaning_services, size: 13, color: EmberColors.textMuted),
+                    SizedBox(width: 5),
+                    Text(
+                      'Reset Test Data',
+                      style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: EmberColors.textMuted),
+                    ),
+                  ],
+                ),
               ),
             ),
           ],

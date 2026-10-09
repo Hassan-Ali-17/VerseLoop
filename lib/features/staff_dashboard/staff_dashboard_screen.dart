@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import '../../app/configuration/app_config.dart';
 import '../../app/theme/ember_theme.dart';
 import '../../core/widgets/connection_status_badge.dart';
 import '../../data/providers/app_providers.dart';
@@ -16,6 +17,14 @@ class StaffDashboardScreen extends ConsumerWidget {
 
     return Scaffold(
       appBar: AppBar(
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          tooltip: 'Return to Customer View',
+          onPressed: () {
+            ref.read(userRoleProvider.notifier).setRole(UserRole.customer);
+            context.go('/discover');
+          },
+        ),
         title: const Text('Staff Operations Dashboard'),
         actions: [
           const Padding(

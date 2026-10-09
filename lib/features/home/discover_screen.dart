@@ -7,6 +7,7 @@ import '../../core/widgets/ember_badge.dart';
 import '../../core/widgets/ember_button.dart';
 import '../../data/providers/app_providers.dart';
 import '../../models/dish.dart';
+import '../../models/order.dart';
 
 class DiscoverScreen extends ConsumerWidget {
   const DiscoverScreen({super.key});
@@ -15,6 +16,8 @@ class DiscoverScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final menuRepo = ref.watch(menuRepositoryProvider);
     final cartState = ref.watch(cartProvider);
+    final activeOrdersAsync = ref.watch(activeOrdersProvider);
+    final completedOrdersAsync = ref.watch(completedOrdersProvider);
 
     return Scaffold(
       body: CustomScrollView(
@@ -120,9 +123,87 @@ class DiscoverScreen extends ConsumerWidget {
                             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                           ),
                         ),
-                      ]
+                      ] else ...[
+                        const SizedBox(width: 12),
+                        OutlinedButton.icon(
+                          onPressed: () => context.go('/cart'),
+                          icon: const Icon(Icons.receipt_long, color: EmberColors.textMuted),
+                          label: const Text(
+                            'View Orders / Cart',
+                            style: TextStyle(color: EmberColors.textMain, fontWeight: FontWeight.w600),
+                          ),
+                          style: OutlinedButton.styleFrom(
+                            side: const BorderSide(color: EmberColors.border),
+                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                          ),
+                        ),
+                      ],
                     ],
                   ),
+
+                  // Active or Recent Order Live Tracker Banner
+                  () {
+                    final activeOrders = activeOrdersAsync.value ?? [];
+                    final completedOrders = completedOrdersAsync.value ?? [];
+                    final latest = activeOrders.isNotEmpty
+                        ? activeOrders.first
+                        : (completedOrders.isNotEmpty ? completedOrders.first : null);
+                    if (latest == null) return const SizedBox.shrink();
+                    final isHandedOver = latest.status == OrderStatus.handedOver;
+
+                    return Container(
+                      margin: const EdgeInsets.only(top: 20),
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: EmberColors.surfaceElevated,
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(
+                          color: isHandedOver
+                              ? EmberColors.success.withValues(alpha: 0.6)
+                              : EmberColors.primary.withValues(alpha: 0.5),
+                        ),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(
+                            isHandedOver ? Icons.check_circle : Icons.soup_kitchen,
+                            color: isHandedOver ? EmberColors.success : EmberColors.primary,
+                            size: 28,
+                          ),
+                          const SizedBox(width: 14),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  children: [
+                                    Text(
+                                      '${isHandedOver ? "Completed" : "Active"} Order #${latest.orderNumber}',
+                                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: EmberColors.textMain),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    EmberBadge.fromOrderStatus(latest.status),
+                                  ],
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  isHandedOver
+                                      ? 'Order handed over. Enjoy your meal!'
+                                      : '${latest.items.length} item(s) • Total: ${CurrencyFormatter.formatCents(latest.totalCents)}',
+                                  style: const TextStyle(fontSize: 12, color: EmberColors.textMuted),
+                                ),
+                              ],
+                            ),
+                          ),
+                          ElevatedButton.icon(
+                            icon: const Icon(Icons.timeline, size: 16),
+                            label: const Text('Track Order →'),
+                            onPressed: () => context.go('/orders/tracking/${latest.id}'),
+                          ),
+                        ],
+                      ),
+                    );
+                  }(),
 
                   const SizedBox(height: 36),
 

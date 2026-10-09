@@ -20,7 +20,7 @@ class OrderTrackingScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final orderRepo = ref.watch(orderRepositoryProvider);
+    final orderAsync = ref.watch(orderTrackingProvider(orderId));
 
     return Scaffold(
       appBar: AppBar(
@@ -38,6 +38,11 @@ class OrderTrackingScreen extends ConsumerWidget {
         title: const Text('Live Order Tracking'),
         actions: [
           IconButton(
+            icon: const Icon(Icons.refresh),
+            tooltip: 'Refresh Status',
+            onPressed: () => ref.read(orderTrackingProvider(orderId).notifier).refresh(),
+          ),
+          IconButton(
             icon: const Icon(Icons.receipt_long),
             tooltip: 'View Receipt',
             onPressed: () => context.go('/receipt/$orderId'),
@@ -45,14 +50,19 @@ class OrderTrackingScreen extends ConsumerWidget {
           const SizedBox(width: 12),
         ],
       ),
-      body: FutureBuilder<OrderModel?>(
-        future: orderRepo.getOrderById(orderId),
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator(color: EmberColors.primary));
-          }
-
-          final order = snapshot.data;
+      body: orderAsync.when(
+        loading: () => const Center(child: CircularProgressIndicator(color: EmberColors.primary)),
+        error: (err, _) => Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24.0),
+            child: ErrorPanel(
+              title: 'Error Loading Order',
+              message: err.toString(),
+              onRetry: () => ref.read(orderTrackingProvider(orderId).notifier).refresh(),
+            ),
+          ),
+        ),
+        data: (order) {
           if (order == null) {
             return Center(
               child: Padding(
@@ -60,58 +70,99 @@ class OrderTrackingScreen extends ConsumerWidget {
                 child: ErrorPanel(
                   title: 'Order Not Found',
                   message: 'The requested order ID #$orderId could not be retrieved.',
-                  onRetry: () => ref.refresh(orderRepositoryProvider),
+                  onRetry: () => ref.read(orderTrackingProvider(orderId).notifier).refresh(),
                 ),
               ),
             );
           }
 
-          return SingleChildScrollView(
-            padding: const EdgeInsets.all(24.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Top Header Card
-                Container(
-                  padding: const EdgeInsets.all(20),
-                  decoration: BoxDecoration(
-                    color: EmberColors.surface,
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: EmberColors.border),
-                  ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'ORDER #${order.orderNumber}',
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: EmberColors.primary),
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              'Placed by ${order.customerName} • ${DateFormatter.formatTime(order.createdAt)}',
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(fontSize: 13, color: EmberColors.textMuted),
-                            ),
-                          ],
+          return _buildOrderBody(context, ref, order);
+        },
+      ),
+    );
+  }
+
+  Widget _buildOrderBody(BuildContext context, WidgetRef ref, OrderModel order) {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(24.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (order.status == OrderStatus.handedOver) ...[
+            Container(
+              margin: const EdgeInsets.only(bottom: 24),
+              padding: const EdgeInsets.all(18),
+              decoration: BoxDecoration(
+                color: EmberColors.success.withValues(alpha: 0.15),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: EmberColors.success.withValues(alpha: 0.6)),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.check_circle, color: EmberColors.success, size: 32),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: const [
+                        Text(
+                          'Order Handed Over & Completed!',
+                          style: TextStyle(fontWeight: FontWeight.bold, color: EmberColors.success, fontSize: 16),
                         ),
+                        SizedBox(height: 4),
+                        Text(
+                          'Your meal has been handed over by the kitchen team. Enjoy your wood-fired dining experience!',
+                          style: TextStyle(fontSize: 13, color: EmberColors.textMain),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+
+          // Top Header Card
+          Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: EmberColors.surface,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: EmberColors.border),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'ORDER #${order.orderNumber}',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: EmberColors.primary),
                       ),
-                      const SizedBox(width: 12),
-                      EmberBadge.fromOrderStatus(order.status),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Placed by ${order.customerName} • ${DateFormatter.formatTime(order.createdAt)}',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(fontSize: 13, color: EmberColors.textMuted),
+                      ),
                     ],
                   ),
                 ),
+                const SizedBox(width: 12),
+                EmberBadge.fromOrderStatus(order.status),
+              ],
+            ),
+          ),
 
-                const SizedBox(height: 24),
+          const SizedBox(height: 24),
 
-                // Status Timeline
-                _buildStatusTimeline(context, order),
+          // Status Timeline
+          _buildStatusTimeline(context, order),
 
                 const SizedBox(height: 24),
 
@@ -203,8 +254,8 @@ class OrderTrackingScreen extends ConsumerWidget {
                           icon: Icons.cancel_outlined,
                           onPressed: () async {
                             try {
-                              await orderRepo.updateOrderStatus(order.id, OrderStatus.cancelled, note: 'Cancelled by customer');
-                              ref.invalidate(orderRepositoryProvider);
+                              await ref.read(orderRepositoryProvider).updateOrderStatus(order.id, OrderStatus.cancelled, note: 'Cancelled by customer');
+                              ref.read(activeOrdersProvider.notifier).refreshOrders();
                             } catch (e) {
                               if (context.mounted) {
                                 ScaffoldMessenger.of(context).showSnackBar(
@@ -243,9 +294,6 @@ class OrderTrackingScreen extends ConsumerWidget {
               ],
             ),
           );
-        },
-      ),
-    );
   }
 
   Widget _buildStatusTimeline(BuildContext context, OrderModel order) {

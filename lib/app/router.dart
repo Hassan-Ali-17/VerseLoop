@@ -68,6 +68,13 @@ final router = GoRouter(
           },
         ),
         GoRoute(
+          path: '/tracking/:id',
+          builder: (context, state) {
+            final id = state.pathParameters['id'] ?? 'ord-101';
+            return OrderTrackingScreen(orderId: id);
+          },
+        ),
+        GoRoute(
           path: '/receipt/:id',
           builder: (context, state) {
             final id = state.pathParameters['id'] ?? 'ord-101';

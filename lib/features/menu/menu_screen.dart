@@ -51,6 +51,11 @@ class MenuScreen extends ConsumerWidget {
         title: Text('Restaurant Menu', style: Theme.of(context).textTheme.headlineMedium),
         actions: [
           IconButton(
+            icon: const Icon(Icons.receipt_long, color: EmberColors.textMain),
+            tooltip: 'View Orders / Cart',
+            onPressed: () => context.go('/cart'),
+          ),
+          IconButton(
             icon: Stack(
               clipBehavior: Clip.none,
               children: [

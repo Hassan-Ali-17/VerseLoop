@@ -6,3 +6,4 @@ abstract class MenuRepository {
   Future<List<String>> getCategories();
   Future<List<Dish>> searchDishes(String query, {String? category});
 }
+

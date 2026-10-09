@@ -5,6 +5,7 @@ import '../../app/configuration/app_config.dart';
 import '../../app/theme/ember_theme.dart';
 import '../../data/providers/app_providers.dart';
 import 'connection_status_badge.dart';
+import 'staff_auth_dialog.dart';
 
 class ModeSwitcherBar extends ConsumerWidget {
   const ModeSwitcherBar({super.key});
@@ -50,6 +51,7 @@ class ModeSwitcherBar extends ConsumerWidget {
                       ref.invalidate(staffOrdersProvider);
                       ref.invalidate(completedOrdersProvider);
                       ref.invalidate(inventoryProvider);
+                      ref.invalidate(dishesProvider);
                     },
                   ),
                   _buildModeBtn(
@@ -61,6 +63,7 @@ class ModeSwitcherBar extends ConsumerWidget {
                       ref.invalidate(staffOrdersProvider);
                       ref.invalidate(completedOrdersProvider);
                       ref.invalidate(inventoryProvider);
+                      ref.invalidate(dishesProvider);
                     },
                   ),
                 ],
@@ -92,8 +95,11 @@ class ModeSwitcherBar extends ConsumerWidget {
                     label: '⚡ Staff Operations',
                     isSelected: currentRole == UserRole.staff,
                     onTap: () {
-                      ref.read(userRoleProvider.notifier).setRole(UserRole.staff);
-                      context.go('/staff/dashboard');
+                      if (currentRole == UserRole.staff) {
+                        context.go('/staff/dashboard');
+                      } else {
+                        StaffAuthDialog.show(context);
+                      }
                     },
                   ),
                 ],

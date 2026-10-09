@@ -65,8 +65,8 @@ async def update_portions(dish_id: str, payload: UpdatePortionsPayload):
 
     inv_record = format_inventory(updated_inv[0])
 
-    # 3. Broadcast real-time inventory update
-    await ws_hub.broadcast_event(
+    # 3. Broadcast real-time inventory update without blocking HTTP
+    ws_hub.broadcast_event_nowait(
         "INVENTORY_UPDATED",
         {
             "dishId": dish_id,
@@ -104,8 +104,8 @@ async def toggle_availability(dish_id: str, payload: ToggleAvailabilityPayload):
 
     inv_record = format_inventory(updated_inv[0])
 
-    # Broadcast real-time update
-    await ws_hub.broadcast_event(
+    # Broadcast real-time update without blocking HTTP
+    ws_hub.broadcast_event_nowait(
         "INVENTORY_UPDATED",
         {
             "dishId": dish_id,
@@ -115,3 +115,4 @@ async def toggle_availability(dish_id: str, payload: ToggleAvailabilityPayload):
     )
 
     return inv_record
+

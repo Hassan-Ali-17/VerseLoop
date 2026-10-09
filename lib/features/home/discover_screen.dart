@@ -15,6 +15,7 @@ class DiscoverScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final menuRepo = ref.watch(menuRepositoryProvider);
+    final dishesAsync = ref.watch(dishesProvider);
     final cartState = ref.watch(cartProvider);
     final activeOrdersAsync = ref.watch(activeOrdersProvider);
     final completedOrdersAsync = ref.watch(completedOrdersProvider);
@@ -220,13 +221,10 @@ class DiscoverScreen extends ConsumerWidget {
                   ),
                   const SizedBox(height: 16),
 
-                  FutureBuilder<List<Dish>>(
-                    future: menuRepo.getDishes(),
-                    builder: (context, snapshot) {
-                      if (snapshot.connectionState == ConnectionState.waiting) {
-                        return const Center(child: CircularProgressIndicator(color: EmberColors.primary));
-                      }
-                      final dishes = snapshot.data ?? [];
+                  dishesAsync.when(
+                    loading: () => const Center(child: CircularProgressIndicator(color: EmberColors.primary)),
+                    error: (err, _) => const Center(child: Text('Failed to load menu dishes', style: TextStyle(color: EmberColors.error))),
+                    data: (dishes) {
                       final featured = dishes.where((d) => d.isFeatured).toList();
 
                       return LayoutBuilder(

@@ -31,6 +31,7 @@ class MenuScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final menuRepo = ref.watch(menuRepositoryProvider);
+    final dishesAsync = ref.watch(dishesProvider);
     final query = ref.watch(menuSearchQueryProvider);
     final selectedCategory = ref.watch(selectedCategoryProvider);
     final cartState = ref.watch(cartProvider);
@@ -148,33 +149,33 @@ class MenuScreen extends ConsumerWidget {
 
           // Dishes List Grid
           Expanded(
-            child: FutureBuilder<List<Dish>>(
-              future: menuRepo.searchDishes(query, category: selectedCategory),
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return ListView.builder(
-                    padding: const EdgeInsets.all(16),
-                    itemCount: 4,
-                    itemBuilder: (context, index) => const Padding(
-                      padding: EdgeInsets.only(bottom: 12.0),
-                      child: LoadingSkeletonCard(),
-                    ),
-                  );
-                }
-
-                if (snapshot.hasError) {
-                  return Center(
-                    child: Padding(
-                      padding: const EdgeInsets.all(24.0),
-                      child: ErrorPanel(
-                        message: 'Failed to load menu dishes. Please retry.',
-                        onRetry: () => ref.refresh(menuRepositoryProvider),
-                      ),
-                    ),
-                  );
-                }
-
-                final dishes = snapshot.data ?? [];
+            child: dishesAsync.when(
+              loading: () => ListView.builder(
+                padding: const EdgeInsets.all(16),
+                itemCount: 4,
+                itemBuilder: (context, index) => const Padding(
+                  padding: EdgeInsets.only(bottom: 12.0),
+                  child: LoadingSkeletonCard(),
+                ),
+              ),
+              error: (err, _) => Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(24.0),
+                  child: ErrorPanel(
+                    message: 'Failed to load menu dishes. Please retry.',
+                    onRetry: () => ref.read(dishesProvider.notifier).refreshDishes(),
+                  ),
+                ),
+              ),
+              data: (allDishes) {
+                final dishes = allDishes.where((dish) {
+                  final matchesQuery = query.isEmpty ||
+                      dish.name.toLowerCase().contains(query.toLowerCase()) ||
+                      dish.description.toLowerCase().contains(query.toLowerCase()) ||
+                      dish.ingredients.any((ing) => ing.toLowerCase().contains(query.toLowerCase()));
+                  final matchesCategory = selectedCategory == 'All' || dish.category == selectedCategory;
+                  return matchesQuery && matchesCategory;
+                }).toList();
 
                 if (dishes.isEmpty) {
                   return Center(

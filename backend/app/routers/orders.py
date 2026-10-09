@@ -180,22 +180,25 @@ async def create_order(
             )
         raise HTTPException(status_code=400, detail=f"Order creation failed: {error_msg}")
 
-    # 3. Broadcast real-time events to Staff & Customer dashboards
-    await ws_hub.broadcast_event("ORDER_CREATED", {"order": confirmed_order})
+    # 3. Broadcast real-time events to Staff & Customer dashboards in background
+    ws_hub.broadcast_event_nowait("ORDER_CREATED", {"order": confirmed_order})
 
-    # Broadcast inventory updates for each item
-    for item in clean_items:
-        dish_id = item["dishId"]
-        inv = await supabase.get_one("inventory", {"dish_id": f"eq.{dish_id}", "select": "*"})
-        if inv:
-            await ws_hub.broadcast_event(
-                "INVENTORY_UPDATED",
-                {
-                    "dishId": dish_id,
-                    "availablePortions": inv.get("available_portions", 0),
-                    "isAvailable": inv.get("is_available", False),
-                },
-            )
+    # Broadcast inventory updates asynchronously without stalling HTTP response
+    import asyncio
+    async def _async_inv_broadcast():
+        for item in clean_items:
+            dish_id = item["dishId"]
+            inv = await supabase.get_one("inventory", {"dish_id": f"eq.{dish_id}", "select": "*"})
+            if inv:
+                await ws_hub.broadcast_event(
+                    "INVENTORY_UPDATED",
+                    {
+                        "dishId": dish_id,
+                        "availablePortions": inv.get("available_portions", 0),
+                        "isAvailable": inv.get("is_available", False),
+                    },
+                )
+    asyncio.create_task(_async_inv_broadcast())
 
     return confirmed_order
 
@@ -294,55 +297,58 @@ async def update_order_status(order_id: str, payload: UpdateStatusPayload):
     except Exception:
         full_order = updated_order
 
-    # Broadcast ORDER_STATUS_CHANGED event
-    await ws_hub.broadcast_event(
+    # Broadcast ORDER_STATUS_CHANGED event in background
+    ws_hub.broadcast_event_nowait(
         "ORDER_STATUS_CHANGED",
         {"orderId": order_id, "newStatus": payload.status, "order": full_order},
     )
 
-    # If cancelled, inventory was restored, so broadcast inventory updates
+    # If cancelled, inventory was restored, so broadcast inventory updates in background
     if payload.status == "cancelled":
-        items = full_order.get("items") or []
-        for item in items:
-            dish_id = item.get("dishId")
-            if dish_id:
-                inv = await supabase.get_one("inventory", {"dish_id": f"eq.{dish_id}", "select": "*"})
-                if inv:
-                    await ws_hub.broadcast_event(
-                        "INVENTORY_UPDATED",
-                        {
-                            "dishId": dish_id,
-                            "availablePortions": inv.get("available_portions", 0),
-                            "isAvailable": inv.get("is_available", False),
-                        },
-                    )
+        import asyncio
+        async def _async_restore_inv():
+            items = full_order.get("items") or []
+            for item in items:
+                dish_id = item.get("dishId")
+                if dish_id:
+                    try:
+                        inv = await supabase.get_one("inventory", {"dish_id": f"eq.{dish_id}", "select": "*"})
+                        if inv:
+                            ws_hub.broadcast_event_nowait(
+                                "INVENTORY_UPDATED",
+                                {
+                                    "dishId": dish_id,
+                                    "availablePortions": inv.get("available_portions", 0),
+                                    "isAvailable": inv.get("is_available", False),
+                                },
+                            )
+                    except Exception:
+                        pass
+        asyncio.create_task(_async_restore_inv())
 
     return full_order
 
 @router.post("/reset-data")
 async def reset_all_orders():
     """Purge test orders and restore inventory stock (for clean testing)."""
-    try:
-        await supabase.delete("order_status_logs", {"order_id": "neq.none"})
-    except Exception:
-        pass
-    try:
-        await supabase.delete("idempotency_records", {"idempotency_key": "neq.none"})
-    except Exception:
-        pass
-    try:
-        await supabase.delete("orders", {"id": "neq.none"})
-    except Exception:
-        pass
+    import asyncio
+    # Run deletions concurrently
+    await asyncio.gather(
+        supabase.delete("order_status_logs", {"order_id": "neq.none"}),
+        supabase.delete("idempotency_records", {"idempotency_key": "neq.none"}),
+        supabase.delete("orders", {"id": "neq.none"}),
+        return_exceptions=True,
+    )
+
     default_stock = {"d1": 8, "d2": 12, "d3": 5, "d4": 15, "d5": 1}
+    tasks = []
     for dish_id, stock in default_stock.items():
-        try:
-            await supabase.patch("inventory", {"dish_id": f"eq.{dish_id}"}, {"available_portions": stock, "is_available": True})
-            await supabase.patch("dishes", {"id": f"eq.{dish_id}"}, {"stock_count": stock, "is_available": True})
-        except Exception:
-            pass
-    await ws_hub.broadcast_event("INVENTORY_UPDATED", {"dishId": "all", "reset": True})
-    await ws_hub.broadcast_event("ORDER_STATUS_CHANGED", {"orderId": "all", "reset": True})
+        tasks.append(supabase.patch("inventory", {"dish_id": f"eq.{dish_id}"}, {"available_portions": stock, "is_available": True}))
+        tasks.append(supabase.patch("dishes", {"id": f"eq.{dish_id}"}, {"stock_count": stock, "is_available": True}))
+    await asyncio.gather(*tasks, return_exceptions=True)
+
+    ws_hub.broadcast_event_nowait("INVENTORY_UPDATED", {"dishId": "all", "reset": True})
+    ws_hub.broadcast_event_nowait("ORDER_STATUS_CHANGED", {"orderId": "all", "reset": True})
     return {"status": "ok", "message": "All test orders cleared and inventory reset to default stock."}
 
 @router.get("/{order_id}/receipt")

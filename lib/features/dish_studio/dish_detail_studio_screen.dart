@@ -68,7 +68,14 @@ class _DishDetailStudioScreenState extends ConsumerState<DishDetailStudioScreen>
 
   @override
   Widget build(BuildContext context) {
-    if (_dish == null) {
+    final dishesAsync = ref.watch(dishesProvider);
+    final dishes = dishesAsync.asData?.value;
+    final liveDish = dishes != null
+        ? dishes.cast<Dish?>().firstWhere((d) => d?.id == widget.dishId, orElse: () => null)
+        : null;
+    final dish = liveDish ?? _dish;
+
+    if (dish == null) {
       return const Scaffold(
         body: Center(
           child: CircularProgressIndicator(color: EmberColors.primary),
@@ -76,10 +83,10 @@ class _DishDetailStudioScreenState extends ConsumerState<DishDetailStudioScreen>
       );
     }
 
-    final dish = _dish!;
+    final effectiveQuantity = dish.stockCount > 0 ? (_quantity > dish.stockCount ? dish.stockCount : _quantity) : 1;
     final extraCents = _calculateExtraCents();
     final unitTotalCents = dish.basePriceCents + extraCents;
-    final itemTotalCents = unitTotalCents * _quantity;
+    final itemTotalCents = unitTotalCents * effectiveQuantity;
 
     return Scaffold(
       appBar: AppBar(
@@ -182,6 +189,7 @@ class _DishDetailStudioScreenState extends ConsumerState<DishDetailStudioScreen>
     int unitTotalCents,
     int itemTotalCents,
   ) {
+    final effectiveQuantity = dish.stockCount > 0 ? (_quantity > dish.stockCount ? dish.stockCount : _quantity) : 1;
     return Container(
       color: EmberColors.surface,
       child: SingleChildScrollView(
@@ -347,15 +355,15 @@ class _DishDetailStudioScreenState extends ConsumerState<DishDetailStudioScreen>
                   children: [
                     IconButton(
                       icon: const Icon(Icons.remove, size: 18),
-                      onPressed: _quantity > 1 ? () => setState(() => _quantity--) : null,
+                      onPressed: effectiveQuantity > 1 ? () => setState(() => _quantity = effectiveQuantity - 1) : null,
                     ),
                     Text(
-                      '$_quantity',
+                      '$effectiveQuantity',
                       style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                     ),
                     IconButton(
                       icon: const Icon(Icons.add, size: 18),
-                      onPressed: _quantity < dish.stockCount ? () => setState(() => _quantity++) : null,
+                      onPressed: effectiveQuantity < dish.stockCount ? () => setState(() => _quantity = effectiveQuantity + 1) : null,
                     ),
                   ],
                 ),
@@ -363,21 +371,23 @@ class _DishDetailStudioScreenState extends ConsumerState<DishDetailStudioScreen>
               const SizedBox(width: 16),
               Expanded(
                 child: EmberButton(
-                  label: 'Add to Cart • ${CurrencyFormatter.formatCents(itemTotalCents)}',
+                  label: dish.isAvailable && dish.stockCount >= effectiveQuantity
+                      ? 'Add to Cart • ${CurrencyFormatter.formatCents(itemTotalCents)}'
+                      : (dish.stockCount == 0 ? 'Sold Out' : 'Insufficient Stock'),
                   icon: Icons.add_shopping_cart,
-                  onPressed: dish.isAvailable && dish.stockCount >= _quantity
+                  onPressed: dish.isAvailable && dish.stockCount >= effectiveQuantity
                       ? () {
                           ref.read(cartProvider.notifier).addItem(
                                 dish: dish,
                                 selectedOptions: Map.from(_selectedOptions),
                                 selectedOptionNames: Map.from(_selectedOptionNames),
                                 extraPriceCents: extraCents,
-                                quantity: _quantity,
+                                quantity: effectiveQuantity,
                               );
                           ScaffoldMessenger.of(context).showSnackBar(
                             SnackBar(
                               backgroundColor: EmberColors.surfaceElevated,
-                              content: Text('Added ${dish.name} ($_quantity) to your cart.'),
+                              content: Text('Added ${dish.name} ($effectiveQuantity) to your cart.'),
                               action: SnackBarAction(
                                 label: 'VIEW CART',
                                 textColor: EmberColors.primary,

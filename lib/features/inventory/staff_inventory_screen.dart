@@ -42,7 +42,7 @@ class StaffInventoryScreen extends ConsumerWidget {
           return ListView.separated(
             padding: const EdgeInsets.all(24),
             itemCount: items.length,
-            separatorBuilder: (_, __) => const SizedBox(height: 16),
+            separatorBuilder: (_, _) => const SizedBox(height: 16),
             itemBuilder: (context, index) {
               final item = items[index];
               return _buildInventoryRowCard(context, ref, item);
@@ -107,7 +107,7 @@ class StaffInventoryScreen extends ConsumerWidget {
           const SizedBox(width: 24),
           Switch(
             value: item.isAvailable,
-            activeColor: EmberColors.primary,
+            activeThumbColor: EmberColors.primary,
             onChanged: (val) {
               if (!val) {
                 // Confirmation dialog before marking sold out

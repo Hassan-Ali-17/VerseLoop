@@ -53,6 +53,9 @@ final realtimeClientProvider = Provider<RealtimeClient>((ref) {
 });
 
 // Repositories (Swapped dynamically based on AppMode)
+final _singletonFixtureInventory = FixtureInventoryRepository();
+final _singletonFixtureOrder = FixtureOrderRepository(inventoryRepo: _singletonFixtureInventory);
+
 final inventoryRepositoryProvider = Provider<InventoryRepository>((ref) {
   final mode = ref.watch(appModeProvider);
   if (mode == AppMode.fixture) {
@@ -65,7 +68,7 @@ final inventoryRepositoryProvider = Provider<InventoryRepository>((ref) {
 final menuRepositoryProvider = Provider<MenuRepository>((ref) {
   final mode = ref.watch(appModeProvider);
   if (mode == AppMode.fixture) {
-    return FixtureMenuRepository();
+    return FixtureMenuRepository(inventoryRepo: _singletonFixtureInventory);
   } else {
     return RemoteMenuRepository(apiClient: ref.watch(apiClientProvider));
   }
@@ -79,9 +82,6 @@ final orderRepositoryProvider = Provider<OrderRepository>((ref) {
     return RemoteOrderRepository(apiClient: ref.watch(apiClientProvider));
   }
 });
-
-final _singletonFixtureInventory = FixtureInventoryRepository();
-final _singletonFixtureOrder = FixtureOrderRepository(inventoryRepo: _singletonFixtureInventory);
 
 // ----------------------------------------------------
 // CART STATE MANAGEMENT (Notifier)
@@ -236,6 +236,8 @@ class CheckoutNotifier extends Notifier<CheckoutState> {
       ref.read(cartProvider.notifier).clearCart();
       ref.read(activeOrdersProvider.notifier).refreshOrders();
       ref.read(staffOrdersProvider.notifier).refreshOrders();
+      ref.read(inventoryProvider.notifier).refreshInventory();
+      ref.read(dishesProvider.notifier).refreshDishes();
       return true;
     } catch (e) {
       state = state.copyWith(
@@ -287,6 +289,10 @@ class ActiveOrdersNotifier extends AsyncNotifier<List<OrderModel>> {
     await refreshOrders();
     ref.read(activeOrdersProvider.notifier).refreshOrders();
     ref.read(completedOrdersProvider.notifier).refreshOrders();
+    if (status == OrderStatus.cancelled) {
+      ref.read(inventoryProvider.notifier).refreshInventory();
+      ref.read(dishesProvider.notifier).refreshDishes();
+    }
     try {
       ref.read(orderTrackingProvider(orderId).notifier).updateWithOrder(updated);
     } catch (_) {}
@@ -421,13 +427,52 @@ class InventoryNotifier extends AsyncNotifier<List<InventoryItem>> {
     final repo = ref.read(inventoryRepositoryProvider);
     await repo.updatePortionCount(dishId, newCount);
     await refreshInventory();
+    ref.read(dishesProvider.notifier).refreshDishes();
   }
 
   Future<void> toggleAvailability(String dishId, bool isAvailable) async {
     final repo = ref.read(inventoryRepositoryProvider);
     await repo.toggleAvailability(dishId, isAvailable);
     await refreshInventory();
+    ref.read(dishesProvider.notifier).refreshDishes();
   }
 }
 
 final inventoryProvider = AsyncNotifierProvider<InventoryNotifier, List<InventoryItem>>(InventoryNotifier.new);
+
+// ----------------------------------------------------
+// DISHES / MENU PROVIDER (AsyncNotifier)
+// ----------------------------------------------------
+class DishesNotifier extends AsyncNotifier<List<Dish>> {
+  StreamSubscription? _wsSub;
+
+  @override
+  Future<List<Dish>> build() async {
+    final repo = ref.watch(menuRepositoryProvider);
+    final wsClient = ref.watch(realtimeClientProvider);
+
+    _wsSub?.cancel();
+    _wsSub = wsClient.events.listen((event) {
+      if (event.event == 'INVENTORY_UPDATED' ||
+          event.event == 'ORDER_CREATED' ||
+          event.event == 'DISH_CREATED') {
+        refreshDishes();
+      }
+    });
+    ref.onDispose(() => _wsSub?.cancel());
+
+    return await repo.getDishes();
+  }
+
+  Future<void> refreshDishes() async {
+    try {
+      final repo = ref.read(menuRepositoryProvider);
+      final list = await repo.getDishes();
+      state = AsyncValue.data(list);
+    } catch (e, st) {
+      state = AsyncValue.error(e, st);
+    }
+  }
+}
+
+final dishesProvider = AsyncNotifierProvider<DishesNotifier, List<Dish>>(DishesNotifier.new);

@@ -36,3 +36,4 @@ class RemoteMenuRepository implements MenuRepository {
     return list.map((e) => Dish.fromJson(e as Map<String, dynamic>)).toList();
   }
 }
+

@@ -31,6 +31,7 @@ class StaffDashboardScreen extends ConsumerWidget {
             padding: EdgeInsets.symmetric(horizontal: 16.0),
             child: Center(child: ConnectionStatusBadge()),
           ),
+          const SizedBox(width: 8),
           IconButton(
             icon: const Icon(Icons.refresh),
             onPressed: () {

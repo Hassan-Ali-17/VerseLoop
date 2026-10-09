@@ -16,6 +16,12 @@ import '../features/staff_orders/staff_order_queue_screen.dart';
 
 final router = GoRouter(
   initialLocation: '/',
+  redirect: (context, state) {
+    if (state.uri.path.startsWith('/staff') && AppConfig.currentRole != UserRole.staff) {
+      return '/discover';
+    }
+    return null;
+  },
   routes: [
     ShellRoute(
       builder: (context, state, child) {

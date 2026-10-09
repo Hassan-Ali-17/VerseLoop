@@ -9,7 +9,7 @@ enum UserRole {
 }
 
 class AppConfig {
-  static AppMode currentMode = AppMode.fixture;
+  static AppMode currentMode = AppMode.connected;
   static UserRole currentRole = UserRole.customer;
 
   static const String baseApiUrl = String.fromEnvironment(

@@ -155,6 +155,27 @@ class FixtureOrderRepository implements OrderRepository {
       history: updatedHistory,
     );
 
+    if (newStatus == OrderStatus.cancelled && inventoryRepo != null) {
+      final inventoryList = await inventoryRepo!.getInventory();
+      for (final item in existing.items) {
+        final inv = inventoryList.firstWhere(
+          (i) => i.dishId == item.dish.id,
+          orElse: () => InventoryItem(
+            dishId: item.dish.id,
+            dishName: item.dish.name,
+            category: item.dish.category,
+            availablePortions: 0,
+            isAvailable: true,
+            updatedAt: DateTime.now(),
+          ),
+        );
+        await inventoryRepo!.updatePortionCount(
+          item.dish.id,
+          inv.availablePortions + item.quantity,
+        );
+      }
+    }
+
     _orders[orderId] = updated;
     return updated;
   }

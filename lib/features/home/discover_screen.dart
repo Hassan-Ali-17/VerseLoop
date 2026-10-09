@@ -14,7 +14,6 @@ class DiscoverScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final menuRepo = ref.watch(menuRepositoryProvider);
     final dishesAsync = ref.watch(dishesProvider);
     final cartState = ref.watch(cartProvider);
     final activeOrdersAsync = ref.watch(activeOrdersProvider);
@@ -101,45 +100,78 @@ class DiscoverScreen extends ConsumerWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   // Action CTA Bar
-                  Row(
-                    children: [
-                      Expanded(
-                        child: EmberButton(
-                          label: 'Explore 3D Menu',
-                          icon: Icons.restaurant_menu,
-                          onPressed: () => context.go('/menu'),
-                        ),
-                      ),
-                      if (cartState.itemCount > 0) ...[
-                        const SizedBox(width: 12),
-                        OutlinedButton.icon(
-                          onPressed: () => context.go('/cart'),
-                          icon: const Icon(Icons.shopping_bag, color: EmberColors.primary),
-                          label: Text(
-                            'Cart (${cartState.itemCount}) • ${CurrencyFormatter.formatCents(cartState.totalCents)}',
-                            style: const TextStyle(color: EmberColors.primary, fontWeight: FontWeight.bold),
+                  LayoutBuilder(
+                    builder: (context, constraints) {
+                      final isNarrow = constraints.maxWidth < 480;
+                      if (isNarrow) {
+                        return Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            EmberButton(
+                              label: 'Explore 3D Menu',
+                              icon: Icons.restaurant_menu,
+                              onPressed: () => context.go('/menu'),
+                            ),
+                            const SizedBox(height: 10),
+                            OutlinedButton.icon(
+                              onPressed: () => context.go('/cart'),
+                              icon: Icon(
+                                cartState.itemCount > 0 ? Icons.shopping_bag : Icons.receipt_long,
+                                color: cartState.itemCount > 0 ? EmberColors.primary : EmberColors.textMuted,
+                                size: 18,
+                              ),
+                              label: Text(
+                                cartState.itemCount > 0
+                                    ? 'Cart (${cartState.itemCount}) • ${CurrencyFormatter.formatCents(cartState.totalCents)}'
+                                    : 'View Orders / Cart',
+                                style: TextStyle(
+                                  color: cartState.itemCount > 0 ? EmberColors.primary : EmberColors.textMain,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              style: OutlinedButton.styleFrom(
+                                side: BorderSide(color: cartState.itemCount > 0 ? EmberColors.primary : EmberColors.border),
+                                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                              ),
+                            ),
+                          ],
+                        );
+                      }
+
+                      return Row(
+                        children: [
+                          Expanded(
+                            child: EmberButton(
+                              label: 'Explore 3D Menu',
+                              icon: Icons.restaurant_menu,
+                              onPressed: () => context.go('/menu'),
+                            ),
                           ),
-                          style: OutlinedButton.styleFrom(
-                            side: const BorderSide(color: EmberColors.primary),
-                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                          const SizedBox(width: 12),
+                          OutlinedButton.icon(
+                            onPressed: () => context.go('/cart'),
+                            icon: Icon(
+                              cartState.itemCount > 0 ? Icons.shopping_bag : Icons.receipt_long,
+                              color: cartState.itemCount > 0 ? EmberColors.primary : EmberColors.textMuted,
+                              size: 18,
+                            ),
+                            label: Text(
+                              cartState.itemCount > 0
+                                  ? 'Cart (${cartState.itemCount}) • ${CurrencyFormatter.formatCents(cartState.totalCents)}'
+                                  : 'View Orders / Cart',
+                              style: TextStyle(
+                                color: cartState.itemCount > 0 ? EmberColors.primary : EmberColors.textMain,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            style: OutlinedButton.styleFrom(
+                              side: BorderSide(color: cartState.itemCount > 0 ? EmberColors.primary : EmberColors.border),
+                              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                            ),
                           ),
-                        ),
-                      ] else ...[
-                        const SizedBox(width: 12),
-                        OutlinedButton.icon(
-                          onPressed: () => context.go('/cart'),
-                          icon: const Icon(Icons.receipt_long, color: EmberColors.textMuted),
-                          label: const Text(
-                            'View Orders / Cart',
-                            style: TextStyle(color: EmberColors.textMain, fontWeight: FontWeight.w600),
-                          ),
-                          style: OutlinedButton.styleFrom(
-                            side: const BorderSide(color: EmberColors.border),
-                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                          ),
-                        ),
-                      ],
-                    ],
+                        ],
+                      );
+                    },
                   ),
 
                   // Active or Recent Order Live Tracker Banner
@@ -157,51 +189,121 @@ class DiscoverScreen extends ConsumerWidget {
                       padding: const EdgeInsets.all(16),
                       decoration: BoxDecoration(
                         color: EmberColors.surfaceElevated,
-                        borderRadius: BorderRadius.circular(10),
+                        borderRadius: BorderRadius.circular(12),
                         border: Border.all(
                           color: isHandedOver
                               ? EmberColors.success.withValues(alpha: 0.6)
                               : EmberColors.primary.withValues(alpha: 0.5),
                         ),
-                      ),
-                      child: Row(
-                        children: [
-                          Icon(
-                            isHandedOver ? Icons.check_circle : Icons.soup_kitchen,
-                            color: isHandedOver ? EmberColors.success : EmberColors.primary,
-                            size: 28,
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.25),
+                            blurRadius: 10,
+                            offset: const Offset(0, 4),
                           ),
-                          const SizedBox(width: 14),
-                          Expanded(
-                            child: Column(
+                        ],
+                      ),
+                      child: LayoutBuilder(
+                        builder: (context, constraints) {
+                          final isNarrow = constraints.maxWidth < 580;
+                          if (isNarrow) {
+                            return Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Row(
                                   children: [
-                                    Text(
-                                      '${isHandedOver ? "Completed" : "Active"} Order #${latest.orderNumber}',
-                                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: EmberColors.textMain),
+                                    Icon(
+                                      isHandedOver ? Icons.check_circle : Icons.soup_kitchen,
+                                      color: isHandedOver ? EmberColors.success : EmberColors.primary,
+                                      size: 24,
+                                    ),
+                                    const SizedBox(width: 10),
+                                    Expanded(
+                                      child: Text(
+                                        '${isHandedOver ? "Completed" : "Active"} Order #${latest.orderNumber}',
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: EmberColors.textMain),
+                                      ),
                                     ),
                                     const SizedBox(width: 8),
                                     EmberBadge.fromOrderStatus(latest.status),
                                   ],
                                 ),
-                                const SizedBox(height: 4),
+                                const SizedBox(height: 8),
                                 Text(
                                   isHandedOver
                                       ? 'Order handed over. Enjoy your meal!'
                                       : '${latest.items.length} item(s) • Total: ${CurrencyFormatter.formatCents(latest.totalCents)}',
                                   style: const TextStyle(fontSize: 12, color: EmberColors.textMuted),
                                 ),
+                                const SizedBox(height: 14),
+                                SizedBox(
+                                  width: double.infinity,
+                                  child: ElevatedButton.icon(
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: EmberColors.primary,
+                                      foregroundColor: EmberColors.background,
+                                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                      padding: const EdgeInsets.symmetric(vertical: 10),
+                                    ),
+                                    icon: const Icon(Icons.timeline, size: 16),
+                                    label: const Text('Track Order Progress →', style: TextStyle(fontWeight: FontWeight.bold)),
+                                    onPressed: () => context.go('/orders/tracking/${latest.id}'),
+                                  ),
+                                ),
                               ],
-                            ),
-                          ),
-                          ElevatedButton.icon(
-                            icon: const Icon(Icons.timeline, size: 16),
-                            label: const Text('Track Order →'),
-                            onPressed: () => context.go('/orders/tracking/${latest.id}'),
-                          ),
-                        ],
+                            );
+                          }
+
+                          return Row(
+                            children: [
+                              Icon(
+                                isHandedOver ? Icons.check_circle : Icons.soup_kitchen,
+                                color: isHandedOver ? EmberColors.success : EmberColors.primary,
+                                size: 28,
+                              ),
+                              const SizedBox(width: 14),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Wrap(
+                                      crossAxisAlignment: WrapCrossAlignment.center,
+                                      spacing: 8,
+                                      runSpacing: 4,
+                                      children: [
+                                        Text(
+                                          '${isHandedOver ? "Completed" : "Active"} Order #${latest.orderNumber}',
+                                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: EmberColors.textMain),
+                                        ),
+                                        EmberBadge.fromOrderStatus(latest.status),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      isHandedOver
+                                          ? 'Order handed over. Enjoy your meal!'
+                                          : '${latest.items.length} item(s) • Total: ${CurrencyFormatter.formatCents(latest.totalCents)}',
+                                      style: const TextStyle(fontSize: 12, color: EmberColors.textMuted),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              ElevatedButton.icon(
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: EmberColors.primary,
+                                  foregroundColor: EmberColors.background,
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                ),
+                                icon: const Icon(Icons.timeline, size: 16),
+                                label: const Text('Track Order →'),
+                                onPressed: () => context.go('/orders/tracking/${latest.id}'),
+                              ),
+                            ],
+                          );
+                        },
                       ),
                     );
                   }(),
@@ -212,7 +314,14 @@ class DiscoverScreen extends ConsumerWidget {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text('Featured 3D Dishes', style: Theme.of(context).textTheme.headlineLarge),
+                      Expanded(
+                        child: Text(
+                          'Featured 3D Dishes',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: Theme.of(context).textTheme.headlineLarge,
+                        ),
+                      ),
                       TextButton(
                         onPressed: () => context.go('/menu'),
                         child: const Text('View All Menu →', style: TextStyle(color: EmberColors.primary)),
@@ -359,10 +468,15 @@ class DiscoverScreen extends ConsumerWidget {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text(
-                        dish.category,
-                        style: const TextStyle(fontSize: 11, color: EmberColors.primary, fontWeight: FontWeight.bold),
+                      Flexible(
+                        child: Text(
+                          dish.category,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(fontSize: 11, color: EmberColors.primary, fontWeight: FontWeight.bold),
+                        ),
                       ),
+                      const SizedBox(width: 6),
                       EmberBadge.stockStatus(isAvailable: dish.isAvailable, portions: dish.stockCount),
                     ],
                   ),

@@ -6,7 +6,8 @@ import '../../data/providers/app_providers.dart';
 import '../networking/websocket_client.dart';
 
 class ConnectionStatusBadge extends ConsumerWidget {
-  const ConnectionStatusBadge({super.key});
+  final bool compact;
+  const ConnectionStatusBadge({super.key, this.compact = false});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -17,28 +18,31 @@ class ConnectionStatusBadge extends ConsumerWidget {
       stream: wsClient.statusStream,
       initialData: wsClient.status,
       builder: (context, snapshot) {
-        final status = snapshot.data ?? WsConnectionStatus.disconnected;
+        final status = snapshot.data ?? wsClient.status;
 
         Color dotColor;
         String text;
 
         if (mode == AppMode.fixture) {
-          dotColor = EmberColors.success;
-          text = 'FIXTURE MODE (OFFLINE DEMO)';
+          dotColor = EmberColors.warning;
+          text = compact ? 'OFFLINE' : 'OFFLINE (FIXTURE DEMO)';
         } else {
           switch (status) {
             case WsConnectionStatus.connected:
               dotColor = EmberColors.success;
-              text = 'CONNECTED';
+              text = compact ? 'LIVE' : 'CONNECTED';
               break;
             case WsConnectionStatus.connecting:
+              dotColor = EmberColors.warning;
+              text = compact ? 'CONNECTING' : 'CONNECTING...';
+              break;
             case WsConnectionStatus.reconnecting:
               dotColor = EmberColors.warning;
-              text = 'RECONNECTING...';
+              text = compact ? 'SYNCING' : 'RECONNECTING...';
               break;
             case WsConnectionStatus.disconnected:
               dotColor = EmberColors.error;
-              text = 'DISCONNECTED';
+              text = compact ? 'DISCONNECTED' : 'DISCONNECTED';
               break;
           }
         }

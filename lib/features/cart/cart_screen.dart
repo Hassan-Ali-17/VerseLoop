@@ -290,10 +290,18 @@ class CartScreen extends ConsumerWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text('Active Kitchen Orders (${orders.length})', style: Theme.of(context).textTheme.titleLarge),
+              Expanded(
+                child: Text(
+                  'Active Kitchen Orders (${orders.length})',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.titleLarge,
+                ),
+              ),
+              const SizedBox(width: 8),
               OutlinedButton.icon(
                 icon: const Icon(Icons.add, size: 16),
-                label: const Text('Add More Items'),
+                label: const Text('Add Items'),
                 onPressed: () => context.go('/menu'),
               ),
             ],
@@ -345,7 +353,15 @@ class CartScreen extends ConsumerWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text('Recent Orders (${orders.length})', style: Theme.of(context).textTheme.titleLarge),
+              Expanded(
+                child: Text(
+                  'Recent Orders (${orders.length})',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.titleLarge,
+                ),
+              ),
+              const SizedBox(width: 8),
               OutlinedButton.icon(
                 icon: const Icon(Icons.restaurant_menu, size: 16),
                 label: const Text('Order More'),
@@ -380,18 +396,23 @@ class CartScreen extends ConsumerWidget {
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('ORDER #${order.orderNumber}',
-                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: EmberColors.primary)),
-                    const SizedBox(height: 2),
-                    Text(
-                      'Placed by ${order.customerName} • ${DateFormatter.formatTime(order.createdAt)}',
-                      style: const TextStyle(fontSize: 12, color: EmberColors.textMuted),
-                    ),
-                  ],
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('ORDER #${order.orderNumber}',
+                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: EmberColors.primary)),
+                      const SizedBox(height: 2),
+                      Text(
+                        'Placed by ${order.customerName} • ${DateFormatter.formatTime(order.createdAt)}',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(fontSize: 12, color: EmberColors.textMuted),
+                      ),
+                    ],
+                  ),
                 ),
+                const SizedBox(width: 8),
                 EmberBadge.fromOrderStatus(order.status),
               ],
             ),
@@ -431,29 +452,74 @@ class CartScreen extends ConsumerWidget {
                       ),
                     )),
                 const Divider(height: 24),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      'Total: ${CurrencyFormatter.formatCents(order.totalCents)}',
-                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: EmberColors.textMain),
-                    ),
-                    Row(
+                LayoutBuilder(
+                  builder: (context, constraints) {
+                    final isNarrow = constraints.maxWidth < 450;
+                    if (isNarrow) {
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Text(
+                            'Total: ${CurrencyFormatter.formatCents(order.totalCents)}',
+                            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: EmberColors.textMain),
+                          ),
+                          const SizedBox(height: 12),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: OutlinedButton.icon(
+                                  icon: const Icon(Icons.receipt_long, size: 16),
+                                  label: const Text('Receipt'),
+                                  onPressed: () => context.go('/receipt/${order.id}'),
+                                ),
+                              ),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: ElevatedButton.icon(
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: EmberColors.primary,
+                                    foregroundColor: EmberColors.background,
+                                  ),
+                                  icon: const Icon(Icons.timeline, size: 16),
+                                  label: const Text('Track →'),
+                                  onPressed: () => context.go('/orders/tracking/${order.id}'),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      );
+                    }
+
+                    return Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        OutlinedButton.icon(
-                          icon: const Icon(Icons.receipt_long, size: 16),
-                          label: const Text('Receipt'),
-                          onPressed: () => context.go('/receipt/${order.id}'),
+                        Text(
+                          'Total: ${CurrencyFormatter.formatCents(order.totalCents)}',
+                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: EmberColors.textMain),
                         ),
-                        const SizedBox(width: 10),
-                        ElevatedButton.icon(
-                          icon: const Icon(Icons.timeline, size: 16),
-                          label: const Text('Track Order →'),
-                          onPressed: () => context.go('/orders/tracking/${order.id}'),
+                        Row(
+                          children: [
+                            OutlinedButton.icon(
+                              icon: const Icon(Icons.receipt_long, size: 16),
+                              label: const Text('Receipt'),
+                              onPressed: () => context.go('/receipt/${order.id}'),
+                            ),
+                            const SizedBox(width: 10),
+                            ElevatedButton.icon(
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: EmberColors.primary,
+                                foregroundColor: EmberColors.background,
+                              ),
+                              icon: const Icon(Icons.timeline, size: 16),
+                              label: const Text('Track Order →'),
+                              onPressed: () => context.go('/orders/tracking/${order.id}'),
+                            ),
+                          ],
                         ),
                       ],
-                    ),
-                  ],
+                    );
+                  },
                 ),
               ],
             ),

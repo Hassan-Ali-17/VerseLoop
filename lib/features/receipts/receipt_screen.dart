@@ -214,7 +214,15 @@ class ReceiptScreen extends ConsumerWidget {
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           Text(label, style: const TextStyle(fontSize: 13, color: EmberColors.textMuted)),
-          Text(value, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: EmberColors.textMain)),
+          const SizedBox(width: 8),
+          Flexible(
+            child: Text(
+              value,
+              textAlign: TextAlign.end,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: EmberColors.textMain),
+            ),
+          ),
         ],
       ),
     );

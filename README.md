@@ -5,23 +5,78 @@
 
 ---
 
-## 🌟 Quick Start Guide
+## 🌟 Architecture & System Overview
 
-### Prerequisites
-- Flutter SDK `^3.44.4` (Dart `^3.12.2`)
-- Python `3.10+`
+LoopServe 3.0 is a full-stack, enterprise-grade fine dining restaurant operations system combining an ambient customer discovery & ordering journey with a real-time kitchen display system (KDS) and inventory console.
+
+```
+┌────────────────────────────────────────────────────────────────────────┐
+│                   Flutter Client (Web / Desktop / Mobile)              │
+│  - Customer: 3D Ambient Studio, Discover, Menu, Cart, Realtime Tracker │
+│  - Staff Console: PIN Gate (1234), Live Order Queue, Portion Inventory │
+└───────────────────────▲───────────────────────▲────────────────────────┘
+                        │ HTTP / REST (/api/v1) │ WebSocket (/ws)
+                        ▼                       ▼
+┌────────────────────────────────────────────────────────────────────────┐
+│                 FastAPI Python Backend (Port 8080)                     │
+│  - Non-blocking real-time event broadcasting (ws_hub.broadcast_nowait) │
+│  - Idempotent order processing & inventory concurrency lock guard      │
+│  - Asynchronous HTTP connection pool (httpx.AsyncClient)               │
+└───────────────────────────────────▲────────────────────────────────────┘
+                                    │ PostgREST / JSON
+                                    ▼
+┌────────────────────────────────────────────────────────────────────────┐
+│                   Supabase Cloud PostgreSQL Database                   │
+│  - tables: `dishes`, `inventory`, `orders`, `order_items`              │
+└────────────────────────────────────────────────────────────────────────┘
+```
 
 ---
 
-### 1. Run Backend Server (FastAPI + Supabase)
-Start the live backend server on `http://localhost:8080`:
+## 🚀 Quick Start Guide
 
-```bash
-# 1. Start FastAPI backend with live WebSockets
-python run_backend.py
+### Prerequisites
+- **Flutter SDK**: `^3.44.4` (Dart `^3.12.2`)
+- **Python**: `3.10+`
+- **Supabase Cloud Project**: Configured with PostgREST tables (`dishes`, `inventory`, `orders`, `order_items`)
+
+---
+
+### 1. Environment Configuration
+
+Create a `.env` file in the project root:
+
+```env
+SUPABASE_URL=https://<your-project-id>.supabase.co
+SUPABASE_SERVICE_ROLE_KEY=<your-supabase-service-role-key>
+SUPABASE_ANON_KEY=<your-supabase-anon-key>
+HOST=0.0.0.0
+PORT=8080
+API_PREFIX=/api/v1
 ```
 
-To run the automated backend concurrency test suite (validating the non-negotiable constraints, race condition prevention on dish `d5`, idempotency, and cancellation conflicts):
+---
+
+### 2. Run Backend Server (FastAPI + Supabase)
+
+Install Python dependencies:
+
+```bash
+pip install -r backend/requirements.txt
+```
+
+Start the live backend server:
+
+```bash
+python run_backend.py
+```
+- **REST API Base**: `http://localhost:8080/api/v1`
+- **Realtime WebSocket**: `ws://localhost:8080/ws`
+- **Interactive OpenAPI Docs**: `http://localhost:8080/docs`
+- **Health Verification**: `http://localhost:8080/api/v1/health`
+
+#### Run Automated Backend Concurrency & Idempotency Tests:
+Validates non-negotiable constraints, race condition prevention on dish `d5`, idempotency keys, and cancellation handling:
 
 ```bash
 python -m backend.test_backend
@@ -29,35 +84,79 @@ python -m backend.test_backend
 
 ---
 
-### 2. Run Frontend Application (Flutter)
-Run the application locally in Web or Desktop mode:
+### 3. Run Frontend Application (Flutter)
+
+Fetch dependencies:
+
+```bash
+flutter pub get
+```
+
+Launch the application:
 
 ```bash
 # Run in Chrome Web Browser
 flutter run -d chrome
 
-# Or run Windows Desktop build
+# Run Windows Desktop application
 flutter run -d windows
+```
+
+To configure custom backend endpoints during build or launch:
+
+```bash
+flutter run -d chrome --dart-define=API_URL=http://localhost:8080/api/v1 --dart-define=WS_URL=ws://localhost:8080/ws
 ```
 
 ---
 
-### 3. Run Automated Flutter Test Suite
-Execute unit and widget tests:
+### 4. Run Automated Flutter Test Suite
+
+Execute the complete unit and widget test suite:
 
 ```bash
 flutter test
 ```
 
+All 6 automated tests validate:
+1. Minor currency integer conversion (pricing in minor cents).
+2. Dollars-to-cents rounding integrity.
+3. Order idempotency key safety.
+4. Sold-out inventory conflict rejection.
+5. LoopServeApp initial boot & widget tree render.
+
 ---
 
 ## 🛠️ Operating Modes & Presentation Controls
 
-The application includes a persistent **Mode Switcher Bar** rendered at the top of the viewport:
+A persistent, responsive **Mode Switcher Bar** is rendered at the top of the viewport:
 
-1. **Development Fixture Mode**: Uses deterministic seeded fine-dining menu items, active tickets, and portion inventory. Allows isolated UI demonstration without requiring an active backend server.
-2. **Connected Backend Mode**: Connects to the live FastAPI server (`http://localhost:8080/api/v1`), Supabase database, and WebSocket event stream (`ws://localhost:8080/ws`).
-3. **Role Switcher (`Customer View` vs `Staff Operations`)**: Seamlessly toggles between the Customer Ordering Journey and the Staff Kitchen Operations Console during hackathon presentation.
+### 1. Environment Modes
+- **Connected Backend Mode (Default)**: Connects to the live FastAPI server (`http://localhost:8080/api/v1`), Supabase Cloud PostgreSQL, and WebSocket event stream (`ws://localhost:8080/ws`).
+- **Development Fixture Mode**: Uses deterministic in-memory fixtures (`fixture_data.dart`). Allows completely offline demonstration without requiring an active backend or internet connection.
+
+### 2. Role Switcher (`Customer` vs `Staff`)
+- **🍽️ Customer View**: Browse curated menu, customize portions in the 3D Dish Detail Studio, manage cart, place orders, and track live status.
+- **⚡ Staff Operations**: Access the kitchen display system (KDS), manage active tickets, adjust prep times, toggle portion counts, and inspect historical receipts.
+- **🔐 Staff Passcode Gate**: Switching from Customer to Staff mode requires a security passcode dialog (Default PIN: `1234`).
+
+### 3. Responsive Mobile View
+- Automatically adapts on screens `< 650px` into a clean **2-line touch-friendly layout**:
+  - **Line 1**: `🍽️ Customer` vs `⚡ Staff` segmented switcher + `Reset Test Data` button.
+  - **Line 2**: Real-time connection badge (`LIVE`, `OFFLINE`, `SYNCING`) + `Connected` vs `Offline` mode toggle.
+
+---
+
+## ⚡ Real-Time WebSocket Protocol
+
+The backend and frontend communicate bi-directionally over `ws://<host>:<port>/ws`:
+
+| Event Name | Direction | Description |
+| :--- | :--- | :--- |
+| `ORDER_CREATED` | Server ➔ Clients | Dispatched on new customer order placement. Notifies kitchen KDS immediately. |
+| `ORDER_STATUS_CHANGED` | Server ➔ Clients | Dispatched on ticket progression (`pending` ➔ `accepted` ➔ `preparing` ➔ `ready` ➔ `handedOver` ➔ `cancelled`). Synchronizes customer tracker. |
+| `INVENTORY_UPDATED` | Server ➔ Clients | Dispatched when portions are adjusted or marked sold out. Syncs catalog across all screens. |
+| `PING` / `PONG` | Bi-directional | Heartbeat keep-alive to maintain connection health through network fluctuations. |
 
 ---
 

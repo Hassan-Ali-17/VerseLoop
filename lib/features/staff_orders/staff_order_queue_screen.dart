@@ -29,13 +29,18 @@ class StaffOrderQueueScreen extends ConsumerWidget {
             }
           },
         ),
-        title: const Text('Live Kitchen Order Queue'),
+        title: const FittedBox(
+          fit: BoxFit.scaleDown,
+          alignment: Alignment.centerLeft,
+          child: Text('Live Order Queue'),
+        ),
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh),
+            tooltip: 'Refresh Orders',
             onPressed: () => ref.read(staffOrdersProvider.notifier).refreshOrders(),
           ),
-          const SizedBox(width: 12),
+          const SizedBox(width: 8),
         ],
       ),
       body: activeOrdersAsync.when(
@@ -57,13 +62,18 @@ class StaffOrderQueueScreen extends ConsumerWidget {
             );
           }
 
-          return ListView.separated(
-            padding: const EdgeInsets.all(24),
-            itemCount: orders.length,
-            separatorBuilder: (_, __) => const SizedBox(height: 16),
-            itemBuilder: (context, index) {
-              final order = orders[index];
-              return _buildOrderTicketCard(context, ref, order);
+          return LayoutBuilder(
+            builder: (context, constraints) {
+              final isMobile = constraints.maxWidth < 600;
+              return ListView.separated(
+                padding: EdgeInsets.all(isMobile ? 16 : 24),
+                itemCount: orders.length,
+                separatorBuilder: (_, __) => const SizedBox(height: 16),
+                itemBuilder: (context, index) {
+                  final order = orders[index];
+                  return _buildOrderTicketCard(context, ref, order);
+                },
+              );
             },
           );
         },
@@ -86,42 +96,91 @@ class StaffOrderQueueScreen extends ConsumerWidget {
         children: [
           // Header Row
           Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
+            padding: const EdgeInsets.all(14),
+            decoration: const BoxDecoration(
               color: EmberColors.surfaceElevated,
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(10)),
+              borderRadius: BorderRadius.vertical(top: Radius.circular(9)),
             ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Row(
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final isNarrow = constraints.maxWidth < 450;
+                if (isNarrow) {
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            'TICKET #${order.orderNumber}',
+                            style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: EmberColors.primary),
+                          ),
+                          EmberBadge.fromOrderStatus(order.status),
+                        ],
+                      ),
+                      const SizedBox(height: 6),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              order.customerName,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(fontSize: 14, color: EmberColors.textMain, fontWeight: FontWeight.w600),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            DateFormatter.formatTime(order.createdAt),
+                            style: const TextStyle(fontSize: 12, color: EmberColors.textMuted),
+                          ),
+                        ],
+                      ),
+                    ],
+                  );
+                }
+
+                return Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Text(
-                      'TICKET #${order.orderNumber}',
-                      style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: EmberColors.primary),
+                    Expanded(
+                      child: Row(
+                        children: [
+                          Text(
+                            'TICKET #${order.orderNumber}',
+                            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: EmberColors.primary),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Text(
+                              order.customerName,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(fontSize: 14, color: EmberColors.textMain, fontWeight: FontWeight.w600),
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                     const SizedBox(width: 12),
-                    Text(
-                      order.customerName,
-                      style: const TextStyle(fontSize: 14, color: EmberColors.textMain, fontWeight: FontWeight.w600),
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          DateFormatter.formatTime(order.createdAt),
+                          style: const TextStyle(fontSize: 12, color: EmberColors.textMuted),
+                        ),
+                        const SizedBox(width: 12),
+                        EmberBadge.fromOrderStatus(order.status),
+                      ],
                     ),
                   ],
-                ),
-                Row(
-                  children: [
-                    Text(
-                      DateFormatter.formatTime(order.createdAt),
-                      style: const TextStyle(fontSize: 12, color: EmberColors.textMuted),
-                    ),
-                    const SizedBox(width: 12),
-                    EmberBadge.fromOrderStatus(order.status),
-                  ],
-                ),
-              ],
+                );
+              },
             ),
           ),
 
-          // Items List
+          // Items List & Controls
           Padding(
             padding: const EdgeInsets.all(16.0),
             child: Column(
@@ -131,9 +190,9 @@ class StaffOrderQueueScreen extends ConsumerWidget {
                   Container(
                     padding: const EdgeInsets.all(10),
                     decoration: BoxDecoration(
-                      color: EmberColors.warning.withOpacity(0.1),
+                      color: EmberColors.warning.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(6),
-                      border: Border.all(color: EmberColors.warning.withOpacity(0.3)),
+                      border: Border.all(color: EmberColors.warning.withValues(alpha: 0.3)),
                     ),
                     child: Row(
                       children: [
@@ -159,7 +218,7 @@ class StaffOrderQueueScreen extends ConsumerWidget {
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                             decoration: BoxDecoration(
-                              color: EmberColors.primary.withOpacity(0.2),
+                              color: EmberColors.primary.withValues(alpha: 0.2),
                               borderRadius: BorderRadius.circular(4),
                             ),
                             child: Text(
@@ -172,10 +231,19 @@ class StaffOrderQueueScreen extends ConsumerWidget {
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Text(item.dish.name,
-                                    style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: EmberColors.textMain)),
-                                Text(item.selectedOptionNames.values.join(' • '),
-                                    style: const TextStyle(fontSize: 12, color: EmberColors.textMuted)),
+                                Text(
+                                  item.dish.name,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: EmberColors.textMain),
+                                ),
+                                if (item.selectedOptionNames.isNotEmpty)
+                                  Text(
+                                    item.selectedOptionNames.values.join(' • '),
+                                    maxLines: 2,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(fontSize: 12, color: EmberColors.textMuted),
+                                  ),
                               ],
                             ),
                           ),
@@ -188,15 +256,46 @@ class StaffOrderQueueScreen extends ConsumerWidget {
                 const SizedBox(height: 8),
 
                 // Action Controls Row
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      'Total: ${CurrencyFormatter.formatCents(order.totalCents)}',
-                      style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: EmberColors.textMain),
-                    ),
-                    _buildActionButton(context, ref, order),
-                  ],
+                LayoutBuilder(
+                  builder: (context, constraints) {
+                    final isNarrow = constraints.maxWidth < 420;
+                    if (isNarrow) {
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              const Text(
+                                'Total Amount:',
+                                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: EmberColors.textMuted),
+                              ),
+                              Text(
+                                CurrencyFormatter.formatCents(order.totalCents),
+                                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: EmberColors.primary),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 12),
+                          SizedBox(
+                            width: double.infinity,
+                            child: _buildActionButton(context, ref, order),
+                          ),
+                        ],
+                      );
+                    }
+
+                    return Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          'Total: ${CurrencyFormatter.formatCents(order.totalCents)}',
+                          style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: EmberColors.textMain),
+                        ),
+                        _buildActionButton(context, ref, order),
+                      ],
+                    );
+                  },
                 ),
               ],
             ),
@@ -240,13 +339,17 @@ class StaffOrderQueueScreen extends ConsumerWidget {
   Future<void> _updateStatus(BuildContext context, WidgetRef ref, String orderId, OrderStatus nextStatus) async {
     try {
       await ref.read(staffOrdersProvider.notifier).updateStatus(orderId, nextStatus);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Order #$orderId status updated to ${nextStatus.label}.')),
-      );
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Order #$orderId status updated to ${nextStatus.label}.')),
+        );
+      }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error updating status: $e'), backgroundColor: EmberColors.error),
-      );
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error updating status: $e'), backgroundColor: EmberColors.error),
+        );
+      }
     }
   }
 }

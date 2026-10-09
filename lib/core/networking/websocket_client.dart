@@ -37,11 +37,13 @@ class WsEvent {
 
 class RealtimeClient {
   WebSocketChannel? _channel;
-  WsConnectionStatus _status = WsConnectionStatus.disconnected;
-  
+  WsConnectionStatus _status =
+      AppConfig.isFixtureMode ? WsConnectionStatus.connected : WsConnectionStatus.connecting;
+
   final StreamController<WsEvent> _eventController = StreamController<WsEvent>.broadcast();
-  final StreamController<WsConnectionStatus> _statusController = StreamController<WsConnectionStatus>.broadcast();
-  
+  final StreamController<WsConnectionStatus> _statusController =
+      StreamController<WsConnectionStatus>.broadcast();
+
   final Set<String> _processedEventIds = {};
   int _reconnectAttempts = 0;
   Timer? _reconnectTimer;
@@ -51,7 +53,7 @@ class RealtimeClient {
   Stream<WsConnectionStatus> get statusStream => _statusController.stream;
   WsConnectionStatus get status => _status;
 
-  void connect() {
+  Future<void> connect() async {
     if (_isDisposed) return;
     if (AppConfig.isFixtureMode) {
       _setStatus(WsConnectionStatus.connected);
@@ -62,16 +64,26 @@ class RealtimeClient {
 
     try {
       final uri = Uri.parse(AppConfig.webSocketUrl);
-      _channel = WebSocketChannel.connect(uri);
-      _setStatus(WsConnectionStatus.connected);
-      _reconnectAttempts = 0;
+      final channel = WebSocketChannel.connect(uri);
+      _channel = channel;
 
-      _channel!.stream.listen(
+      channel.stream.listen(
         (message) => _onMessageReceived(message),
-        onError: (err) => _onDisconnected(),
+        onError: (err) {
+          debugPrint('WebSocket stream error: $err');
+          _onDisconnected();
+        },
         onDone: () => _onDisconnected(),
       );
+
+      // Wait for socket handshake to be ready before reporting connected
+      await channel.ready;
+      if (_isDisposed || _channel != channel) return;
+
+      _setStatus(WsConnectionStatus.connected);
+      _reconnectAttempts = 0;
     } catch (e) {
+      debugPrint('WebSocket connection attempt failed: $e');
       _onDisconnected();
     }
   }
@@ -107,18 +119,21 @@ class RealtimeClient {
       return;
     }
 
+    // Keep status as reconnecting with stable retry backoff
     _setStatus(WsConnectionStatus.reconnecting);
     _scheduleReconnect();
   }
 
   void _scheduleReconnect() {
     _reconnectTimer?.cancel();
-    final backoffSeconds = min(pow(2, _reconnectAttempts).toInt(), 30);
+    final backoffSeconds = max(3, min(pow(2, _reconnectAttempts).toInt(), 20));
     _reconnectAttempts++;
 
     debugPrint('WebSocket reconnecting in $backoffSeconds seconds (Attempt $_reconnectAttempts)');
     _reconnectTimer = Timer(Duration(seconds: backoffSeconds), () {
-      if (!_isDisposed) connect();
+      if (!_isDisposed && !AppConfig.isFixtureMode) {
+        connect();
+      }
     });
   }
 
@@ -132,8 +147,11 @@ class RealtimeClient {
   }
 
   void _setStatus(WsConnectionStatus newStatus) {
+    if (_status == newStatus) return;
     _status = newStatus;
-    _statusController.add(newStatus);
+    if (!_statusController.isClosed) {
+      _statusController.add(newStatus);
+    }
   }
 
   void disconnect() {

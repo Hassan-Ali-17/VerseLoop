@@ -28,7 +28,11 @@ class StaffCompletedOrdersScreen extends ConsumerWidget {
             }
           },
         ),
-        title: const Text('Completed Orders History'),
+        title: const FittedBox(
+          fit: BoxFit.scaleDown,
+          alignment: Alignment.centerLeft,
+          child: Text('Completed Orders History'),
+        ),
       ),
       body: FutureBuilder<List<OrderModel>>(
         future: orderRepo.getCompletedOrders(),
@@ -52,47 +56,119 @@ class StaffCompletedOrdersScreen extends ConsumerWidget {
             );
           }
 
-          return ListView.separated(
-            padding: const EdgeInsets.all(24),
-            itemCount: completed.length,
-            separatorBuilder: (_, __) => const SizedBox(height: 16),
-            itemBuilder: (context, index) {
-              final order = completed[index];
-              return Container(
-                padding: const EdgeInsets.all(20),
-                decoration: BoxDecoration(
-                  color: EmberColors.surface,
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: EmberColors.border),
-                ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text('TICKET #${order.orderNumber} • ${order.customerName}',
-                            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: EmberColors.textMain)),
-                        const SizedBox(height: 4),
-                        Text('Completed ${DateFormatter.formatDateTime(order.updatedAt)}',
-                            style: const TextStyle(fontSize: 12, color: EmberColors.textMuted)),
-                      ],
+          return LayoutBuilder(
+            builder: (context, rootConstraints) {
+              final isMobile = rootConstraints.maxWidth < 600;
+              return ListView.separated(
+                padding: EdgeInsets.all(isMobile ? 16 : 24),
+                itemCount: completed.length,
+                separatorBuilder: (_, __) => const SizedBox(height: 16),
+                itemBuilder: (context, index) {
+                  final order = completed[index];
+                  return Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: EmberColors.surface,
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: EmberColors.border),
                     ),
-                    Row(
-                      children: [
-                        EmberBadge.fromOrderStatus(order.status),
-                        const SizedBox(width: 16),
-                        Text(CurrencyFormatter.formatCents(order.totalCents),
-                            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: EmberColors.primary)),
-                        const SizedBox(width: 16),
-                        IconButton(
-                          icon: const Icon(Icons.receipt_long, color: EmberColors.textMain),
-                          onPressed: () => context.go('/receipt/${order.id}'),
-                        ),
-                      ],
+                    child: LayoutBuilder(
+                      builder: (context, constraints) {
+                        final isNarrow = constraints.maxWidth < 500;
+                        if (isNarrow) {
+                          return Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Expanded(
+                                    child: Text(
+                                      'TICKET #${order.orderNumber} • ${order.customerName}',
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: EmberColors.textMain),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  EmberBadge.fromOrderStatus(order.status),
+                                ],
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                'Completed ${DateFormatter.formatDateTime(order.updatedAt)}',
+                                style: const TextStyle(fontSize: 12, color: EmberColors.textMuted),
+                              ),
+                              const SizedBox(height: 12),
+                              const Divider(),
+                              const SizedBox(height: 8),
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Text(
+                                    CurrencyFormatter.formatCents(order.totalCents),
+                                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: EmberColors.primary),
+                                  ),
+                                  OutlinedButton.icon(
+                                    style: OutlinedButton.styleFrom(
+                                      side: const BorderSide(color: EmberColors.border),
+                                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                    ),
+                                    icon: const Icon(Icons.receipt_long, size: 16, color: EmberColors.textMain),
+                                    label: const Text('View Receipt', style: TextStyle(fontSize: 12, color: EmberColors.textMain)),
+                                    onPressed: () => context.go('/receipt/${order.id}'),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          );
+                        }
+
+                        return Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'TICKET #${order.orderNumber} • ${order.customerName}',
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: EmberColors.textMain),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    'Completed ${DateFormatter.formatDateTime(order.updatedAt)}',
+                                    style: const TextStyle(fontSize: 12, color: EmberColors.textMuted),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(width: 16),
+                            Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                EmberBadge.fromOrderStatus(order.status),
+                                const SizedBox(width: 16),
+                                Text(
+                                  CurrencyFormatter.formatCents(order.totalCents),
+                                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: EmberColors.primary),
+                                ),
+                                const SizedBox(width: 12),
+                                IconButton(
+                                  icon: const Icon(Icons.receipt_long, color: EmberColors.textMain),
+                                  tooltip: 'View Receipt',
+                                  onPressed: () => context.go('/receipt/${order.id}'),
+                                ),
+                              ],
+                            ),
+                          ],
+                        );
+                      },
                     ),
-                  ],
-                ),
+                  );
+                },
               );
             },
           );

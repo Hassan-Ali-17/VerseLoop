@@ -61,9 +61,16 @@ class OrderStatusLog {
       };
 
   factory OrderStatusLog.fromJson(Map<String, dynamic> json) {
+    final statusStr = (json['status'] as String? ?? 'pending').toLowerCase();
+    final status = OrderStatus.values.firstWhere(
+      (e) => e.name.toLowerCase() == statusStr,
+      orElse: () => OrderStatus.pending,
+    );
     return OrderStatusLog(
-      status: OrderStatus.values.byName(json['status'] as String),
-      timestamp: DateTime.parse(json['timestamp'] as String),
+      status: status,
+      timestamp: json['timestamp'] != null
+          ? DateTime.parse(json['timestamp'] as String)
+          : DateTime.now(),
       note: json['note'] as String?,
     );
   }
@@ -154,23 +161,32 @@ class OrderModel {
       };
 
   factory OrderModel.fromJson(Map<String, dynamic> json) {
+    final statusStr = (json['status'] as String? ?? 'pending').toLowerCase();
+    final status = OrderStatus.values.firstWhere(
+      (e) => e.name.toLowerCase() == statusStr,
+      orElse: () => OrderStatus.pending,
+    );
     return OrderModel(
-      id: json['id'] as String,
-      idempotencyKey: json['idempotencyKey'] as String,
-      orderNumber: json['orderNumber'] as String,
-      customerName: json['customerName'] as String,
+      id: json['id'] as String? ?? 'ord-unknown',
+      idempotencyKey: json['idempotencyKey'] as String? ?? '',
+      orderNumber: (json['orderNumber'] ?? '').toString(),
+      customerName: json['customerName'] as String? ?? 'Guest Customer',
       customerNotes: json['customerNotes'] as String?,
-      items: (json['items'] as List<dynamic>)
+      items: ((json['items'] as List<dynamic>?) ?? [])
           .map((e) => CartItem.fromJson(e as Map<String, dynamic>))
           .toList(),
-      subtotalCents: json['subtotalCents'] as int,
-      feeCents: json['feeCents'] as int,
-      totalCents: json['totalCents'] as int,
-      status: OrderStatus.values.byName(json['status'] as String),
+      subtotalCents: json['subtotalCents'] as int? ?? 0,
+      feeCents: json['feeCents'] as int? ?? 250,
+      totalCents: json['totalCents'] as int? ?? 0,
+      status: status,
       estimatedPrepMinutes: json['estimatedPrepMinutes'] as int? ?? 20,
-      createdAt: DateTime.parse(json['createdAt'] as String),
-      updatedAt: DateTime.parse(json['updatedAt'] as String),
-      history: (json['history'] as List<dynamic>)
+      createdAt: json['createdAt'] != null
+          ? DateTime.parse(json['createdAt'] as String)
+          : DateTime.now(),
+      updatedAt: json['updatedAt'] != null
+          ? DateTime.parse(json['updatedAt'] as String)
+          : DateTime.now(),
+      history: ((json['history'] as List<dynamic>?) ?? [])
           .map((e) => OrderStatusLog.fromJson(e as Map<String, dynamic>))
           .toList(),
     );

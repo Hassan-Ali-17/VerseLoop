@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 import '../../app/configuration/app_config.dart';
@@ -43,6 +44,8 @@ final userRoleProvider = NotifierProvider<UserRoleNotifier, UserRole>(UserRoleNo
 // Singletons / Clients
 final apiClientProvider = Provider<ApiClient>((ref) => ApiClient());
 final realtimeClientProvider = Provider<RealtimeClient>((ref) {
+  // React to mode switch between Fixture and Connected
+  final mode = ref.watch(appModeProvider);
   final client = RealtimeClient();
   client.connect();
   ref.onDispose(() => client.dispose());
@@ -71,15 +74,14 @@ final menuRepositoryProvider = Provider<MenuRepository>((ref) {
 final orderRepositoryProvider = Provider<OrderRepository>((ref) {
   final mode = ref.watch(appModeProvider);
   if (mode == AppMode.fixture) {
-    return FixtureOrderRepository(
-      inventoryRepo: _singletonFixtureInventory,
-    );
+    return _singletonFixtureOrder;
   } else {
     return RemoteOrderRepository(apiClient: ref.watch(apiClientProvider));
   }
 });
 
 final _singletonFixtureInventory = FixtureInventoryRepository();
+final _singletonFixtureOrder = FixtureOrderRepository(inventoryRepo: _singletonFixtureInventory);
 
 // ----------------------------------------------------
 // CART STATE MANAGEMENT (Notifier)
@@ -251,14 +253,25 @@ final checkoutProvider = NotifierProvider<CheckoutNotifier, CheckoutState>(Check
 // ORDERS PROVIDERS (AsyncNotifier)
 // ----------------------------------------------------
 class ActiveOrdersNotifier extends AsyncNotifier<List<OrderModel>> {
+  StreamSubscription? _wsSub;
+
   @override
   Future<List<OrderModel>> build() async {
     final repo = ref.watch(orderRepositoryProvider);
+    final wsClient = ref.watch(realtimeClientProvider);
+
+    _wsSub?.cancel();
+    _wsSub = wsClient.events.listen((event) {
+      if (event.event == 'ORDER_CREATED' || event.event == 'ORDER_STATUS_CHANGED') {
+        refreshOrders();
+      }
+    });
+    ref.onDispose(() => _wsSub?.cancel());
+
     return await repo.getActiveOrders();
   }
 
   Future<void> refreshOrders() async {
-    state = const AsyncValue.loading();
     try {
       final repo = ref.read(orderRepositoryProvider);
       final list = await repo.getActiveOrders();
@@ -282,14 +295,25 @@ final staffOrdersProvider = AsyncNotifierProvider<ActiveOrdersNotifier, List<Ord
 // INVENTORY STATE PROVIDER (AsyncNotifier)
 // ----------------------------------------------------
 class InventoryNotifier extends AsyncNotifier<List<InventoryItem>> {
+  StreamSubscription? _wsSub;
+
   @override
   Future<List<InventoryItem>> build() async {
     final repo = ref.watch(inventoryRepositoryProvider);
+    final wsClient = ref.watch(realtimeClientProvider);
+
+    _wsSub?.cancel();
+    _wsSub = wsClient.events.listen((event) {
+      if (event.event == 'INVENTORY_UPDATED') {
+        refreshInventory();
+      }
+    });
+    ref.onDispose(() => _wsSub?.cancel());
+
     return await repo.getInventory();
   }
 
   Future<void> refreshInventory() async {
-    state = const AsyncValue.loading();
     try {
       final repo = ref.read(inventoryRepositoryProvider);
       final list = await repo.getInventory();

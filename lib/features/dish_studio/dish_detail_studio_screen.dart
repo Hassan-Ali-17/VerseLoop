@@ -83,6 +83,17 @@ class _DishDetailStudioScreenState extends ConsumerState<DishDetailStudioScreen>
 
     return Scaffold(
       appBar: AppBar(
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          tooltip: 'Back to Menu',
+          onPressed: () {
+            if (context.canPop()) {
+              context.pop();
+            } else {
+              context.go('/menu');
+            }
+          },
+        ),
         title: Text(dish.name, style: Theme.of(context).textTheme.headlineMedium),
         actions: [
           IconButton(

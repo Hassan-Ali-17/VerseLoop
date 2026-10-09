@@ -67,20 +67,27 @@ class ReceiptModel {
       };
 
   factory ReceiptModel.fromJson(Map<String, dynamic> json) {
+    final statusStr = (json['status'] as String? ?? 'pending').toLowerCase();
+    final status = OrderStatus.values.firstWhere(
+      (e) => e.name.toLowerCase() == statusStr,
+      orElse: () => OrderStatus.pending,
+    );
     return ReceiptModel(
-      receiptNumber: json['receiptNumber'] as String,
-      orderId: json['orderId'] as String,
-      orderNumber: json['orderNumber'] as String,
-      issuedAt: DateTime.parse(json['issuedAt'] as String),
-      customerName: json['customerName'] as String,
-      items: (json['items'] as List<dynamic>)
+      receiptNumber: json['receiptNumber'] as String? ?? 'RCP-UNKNOWN',
+      orderId: json['orderId'] as String? ?? '',
+      orderNumber: (json['orderNumber'] ?? '').toString(),
+      issuedAt: json['issuedAt'] != null
+          ? DateTime.parse(json['issuedAt'] as String)
+          : DateTime.now(),
+      customerName: json['customerName'] as String? ?? 'Guest Customer',
+      items: ((json['items'] as List<dynamic>?) ?? [])
           .map((e) => ReceiptLineItem.fromJson(e as Map<String, dynamic>))
           .toList(),
-      subtotalCents: json['subtotalCents'] as int,
-      taxCents: json['taxCents'] as int,
-      serviceFeeCents: json['serviceFeeCents'] as int,
-      totalCents: json['totalCents'] as int,
-      status: OrderStatus.values.byName(json['status'] as String),
+      subtotalCents: json['subtotalCents'] as int? ?? 0,
+      taxCents: json['taxCents'] as int? ?? 0,
+      serviceFeeCents: json['serviceFeeCents'] as int? ?? 250,
+      totalCents: json['totalCents'] as int? ?? 0,
+      status: status,
     );
   }
 }

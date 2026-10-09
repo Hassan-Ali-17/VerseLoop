@@ -15,6 +15,17 @@ class CartScreen extends ConsumerWidget {
 
     return Scaffold(
       appBar: AppBar(
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          tooltip: 'Back to Menu',
+          onPressed: () {
+            if (context.canPop()) {
+              context.pop();
+            } else {
+              context.go('/menu');
+            }
+          },
+        ),
         title: Text('Your Order Cart', style: Theme.of(context).textTheme.headlineMedium),
         actions: [
           if (cartState.items.isNotEmpty)

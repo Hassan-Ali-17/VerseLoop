@@ -52,6 +52,17 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
 
     return Scaffold(
       appBar: AppBar(
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          tooltip: 'Back to Cart',
+          onPressed: () {
+            if (context.canPop()) {
+              context.pop();
+            } else {
+              context.go('/cart');
+            }
+          },
+        ),
         title: Text('Checkout & Order Confirmation', style: Theme.of(context).textTheme.headlineMedium),
       ),
       body: SingleChildScrollView(

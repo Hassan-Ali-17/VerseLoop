@@ -24,6 +24,17 @@ class ReceiptScreen extends ConsumerWidget {
 
     return Scaffold(
       appBar: AppBar(
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          tooltip: 'Back to Menu',
+          onPressed: () {
+            if (context.canPop()) {
+              context.pop();
+            } else {
+              context.go('/menu');
+            }
+          },
+        ),
         title: const Text('Official Tax Receipt'),
       ),
       body: FutureBuilder<ReceiptModel>(

@@ -37,6 +37,17 @@ class MenuScreen extends ConsumerWidget {
 
     return Scaffold(
       appBar: AppBar(
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          tooltip: 'Back to Discover',
+          onPressed: () {
+            if (context.canPop()) {
+              context.pop();
+            } else {
+              context.go('/discover');
+            }
+          },
+        ),
         title: Text('Restaurant Menu', style: Theme.of(context).textTheme.headlineMedium),
         actions: [
           IconButton(
@@ -179,18 +190,19 @@ class MenuScreen extends ConsumerWidget {
                 return LayoutBuilder(
                   builder: (context, constraints) {
                     final crossAxisCount = constraints.maxWidth > 900 ? 3 : (constraints.maxWidth > 600 ? 2 : 1);
+                    final isSingleColumn = crossAxisCount == 1;
                     return GridView.builder(
                       padding: const EdgeInsets.all(16),
                       gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                         crossAxisCount: crossAxisCount,
-                        childAspectRatio: crossAxisCount == 1 ? 2.4 : 0.82,
+                        childAspectRatio: isSingleColumn ? (constraints.maxWidth < 420 ? 2.6 : 3.0) : 0.78,
                         crossAxisSpacing: 16,
                         mainAxisSpacing: 16,
                       ),
                       itemCount: dishes.length,
                       itemBuilder: (context, index) {
                         final dish = dishes[index];
-                        return _buildMenuDishCard(context, dish);
+                        return _buildMenuDishCard(context, dish, isHorizontal: isSingleColumn);
                       },
                     );
                   },
@@ -203,7 +215,7 @@ class MenuScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildMenuDishCard(BuildContext context, Dish dish) {
+  Widget _buildMenuDishCard(BuildContext context, Dish dish, {bool isHorizontal = false}) {
     return InkWell(
       onTap: dish.isAvailable && dish.stockCount > 0 ? () => context.go('/dish/${dish.id}') : null,
       borderRadius: BorderRadius.circular(10),
@@ -215,86 +227,178 @@ class MenuScreen extends ConsumerWidget {
             color: dish.isAvailable && dish.stockCount > 0 ? EmberColors.border : EmberColors.border.withOpacity(0.4),
           ),
         ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Expanded(
-              flex: 4,
-              child: Stack(
-                fit: StackFit.expand,
+        child: isHorizontal
+            ? Row(
                 children: [
-                  ClipRRect(
-                    borderRadius: const BorderRadius.vertical(top: Radius.circular(10)),
-                    child: Image.network(
-                      dish.imageUrl,
-                      fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) => Container(color: EmberColors.surfaceElevated),
-                    ),
-                  ),
-                  Positioned(
-                    top: 10,
-                    right: 10,
-                    child: EmberBadge.stockStatus(isAvailable: dish.isAvailable, portions: dish.stockCount),
-                  ),
-                ],
-              ),
-            ),
-            Expanded(
-              flex: 5,
-              child: Padding(
-                padding: const EdgeInsets.all(12.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      dish.name,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: EmberColors.textMain),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      dish.description,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(fontSize: 12, color: EmberColors.textMuted),
-                    ),
-                    const Spacer(),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  SizedBox(
+                    width: 125,
+                    height: double.infinity,
+                    child: Stack(
+                      fit: StackFit.expand,
                       children: [
-                        Text(
-                          CurrencyFormatter.formatCents(dish.basePriceCents),
-                          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: EmberColors.primary),
+                        ClipRRect(
+                          borderRadius: const BorderRadius.horizontal(left: Radius.circular(10)),
+                          child: Image.network(
+                            dish.imageUrl,
+                            fit: BoxFit.cover,
+                            errorBuilder: (_, __, ___) => Container(color: EmberColors.surfaceElevated),
+                          ),
                         ),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                          decoration: BoxDecoration(
-                            color: dish.isAvailable && dish.stockCount > 0
-                                ? EmberColors.primary
-                                : EmberColors.border,
-                            borderRadius: BorderRadius.circular(6),
-                          ),
-                          child: Text(
-                            dish.isAvailable && dish.stockCount > 0 ? 'Customize 3D →' : 'Sold Out',
-                            style: TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.bold,
-                              color: dish.isAvailable && dish.stockCount > 0
-                                  ? EmberColors.background
-                                  : EmberColors.textMuted,
-                            ),
-                          ),
+                        Positioned(
+                          top: 8,
+                          left: 8,
+                          child: EmberBadge.stockStatus(isAvailable: dish.isAvailable, portions: dish.stockCount),
                         ),
                       ],
                     ),
-                  ],
-                ),
+                  ),
+                  Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 14.0, vertical: 10.0),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                dish.name,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: EmberColors.textMain),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                dish.description,
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(fontSize: 12, color: EmberColors.textMuted),
+                              ),
+                            ],
+                          ),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text(
+                                CurrencyFormatter.formatCents(dish.basePriceCents),
+                                style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: EmberColors.primary),
+                              ),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                                decoration: BoxDecoration(
+                                  color: dish.isAvailable && dish.stockCount > 0
+                                      ? EmberColors.primary
+                                      : EmberColors.border,
+                                  borderRadius: BorderRadius.circular(6),
+                                ),
+                                child: Text(
+                                  dish.isAvailable && dish.stockCount > 0 ? 'Customize 3D →' : 'Sold Out',
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.bold,
+                                    color: dish.isAvailable && dish.stockCount > 0
+                                        ? EmberColors.background
+                                        : EmberColors.textMuted,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              )
+            : Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    flex: 5,
+                    child: Stack(
+                      fit: StackFit.expand,
+                      children: [
+                        ClipRRect(
+                          borderRadius: const BorderRadius.vertical(top: Radius.circular(10)),
+                          child: Image.network(
+                            dish.imageUrl,
+                            fit: BoxFit.cover,
+                            errorBuilder: (_, __, ___) => Container(color: EmberColors.surfaceElevated),
+                          ),
+                        ),
+                        Positioned(
+                          top: 10,
+                          right: 10,
+                          child: EmberBadge.stockStatus(isAvailable: dish.isAvailable, portions: dish.stockCount),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Expanded(
+                    flex: 5,
+                    child: Padding(
+                      padding: const EdgeInsets.all(12.0),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                dish.name,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: EmberColors.textMain),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                dish.description,
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(fontSize: 12, color: EmberColors.textMuted),
+                              ),
+                            ],
+                          ),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text(
+                                CurrencyFormatter.formatCents(dish.basePriceCents),
+                                style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: EmberColors.primary),
+                              ),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                decoration: BoxDecoration(
+                                  color: dish.isAvailable && dish.stockCount > 0
+                                      ? EmberColors.primary
+                                      : EmberColors.border,
+                                  borderRadius: BorderRadius.circular(6),
+                                ),
+                                child: Text(
+                                  dish.isAvailable && dish.stockCount > 0 ? 'Customize 3D →' : 'Sold Out',
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.bold,
+                                    color: dish.isAvailable && dish.stockCount > 0
+                                        ? EmberColors.background
+                                        : EmberColors.textMuted,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
               ),
-            ),
-          ],
-        ),
       ),
     );
   }
 }
+

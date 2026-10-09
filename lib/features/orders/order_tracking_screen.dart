@@ -24,6 +24,17 @@ class OrderTrackingScreen extends ConsumerWidget {
 
     return Scaffold(
       appBar: AppBar(
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          tooltip: 'Back to Menu',
+          onPressed: () {
+            if (context.canPop()) {
+              context.pop();
+            } else {
+              context.go('/menu');
+            }
+          },
+        ),
         title: const Text('Live Order Tracking'),
         actions: [
           IconButton(
@@ -71,16 +82,27 @@ class OrderTrackingScreen extends ConsumerWidget {
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text('ORDER #${order.orderNumber}',
-                              style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: EmberColors.primary)),
-                          const SizedBox(height: 4),
-                          Text('Placed by ${order.customerName} • ${DateFormatter.formatTime(order.createdAt)}',
-                              style: const TextStyle(fontSize: 13, color: EmberColors.textMuted)),
-                        ],
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'ORDER #${order.orderNumber}',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: EmberColors.primary),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              'Placed by ${order.customerName} • ${DateFormatter.formatTime(order.createdAt)}',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(fontSize: 13, color: EmberColors.textMuted),
+                            ),
+                          ],
+                        ),
                       ),
+                      const SizedBox(width: 12),
                       EmberBadge.fromOrderStatus(order.status),
                     ],
                   ),
@@ -125,15 +147,26 @@ class OrderTrackingScreen extends ConsumerWidget {
                                   child: Column(
                                     crossAxisAlignment: CrossAxisAlignment.start,
                                     children: [
-                                      Text('${item.quantity}x ${item.dish.name}',
-                                          style: const TextStyle(fontWeight: FontWeight.bold, color: EmberColors.textMain)),
-                                      Text(item.selectedOptionNames.values.join(' • '),
-                                          style: const TextStyle(fontSize: 12, color: EmberColors.textMuted)),
+                                      Text(
+                                        '${item.quantity}x ${item.dish.name}',
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: const TextStyle(fontWeight: FontWeight.bold, color: EmberColors.textMain),
+                                      ),
+                                      Text(
+                                        item.selectedOptionNames.values.join(' • '),
+                                        maxLines: 2,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: const TextStyle(fontSize: 12, color: EmberColors.textMuted),
+                                      ),
                                     ],
                                   ),
                                 ),
-                                Text(CurrencyFormatter.formatCents(item.totalPriceCents),
-                                    style: const TextStyle(fontWeight: FontWeight.bold, color: EmberColors.primary)),
+                                const SizedBox(width: 8),
+                                Text(
+                                  CurrencyFormatter.formatCents(item.totalPriceCents),
+                                  style: const TextStyle(fontWeight: FontWeight.bold, color: EmberColors.primary),
+                                ),
                               ],
                             ),
                           )),
@@ -153,37 +186,59 @@ class OrderTrackingScreen extends ConsumerWidget {
 
                 const SizedBox(height: 24),
 
-                // Actions Bar (Receipt or Cancel)
-                Row(
-                  children: [
-                    Expanded(
-                      child: EmberButton(
+                // Responsive Actions Bar (Receipt or Cancel)
+                LayoutBuilder(
+                  builder: (context, constraints) {
+                    final isNarrow = constraints.maxWidth < 450;
+                    final buttons = [
+                      EmberButton(
                         label: 'View Order Receipt',
                         icon: Icons.receipt,
                         isSecondary: true,
                         onPressed: () => context.go('/receipt/${order.id}'),
                       ),
-                    ),
-                    if (order.status == OrderStatus.pending) ...[
-                      const SizedBox(width: 16),
-                      Expanded(
-                        child: EmberButton(
+                      if (order.status == OrderStatus.pending)
+                        EmberButton(
                           label: 'Cancel Order',
                           icon: Icons.cancel_outlined,
                           onPressed: () async {
                             try {
                               await orderRepo.updateOrderStatus(order.id, OrderStatus.cancelled, note: 'Cancelled by customer');
-                              ref.refresh(orderRepositoryProvider);
+                              ref.invalidate(orderRepositoryProvider);
                             } catch (e) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(content: Text('Cancellation error: $e')),
-                              );
+                              if (context.mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(content: Text('Cancellation error: $e')),
+                                );
+                              }
                             }
                           },
                         ),
-                      ),
-                    ],
-                  ],
+                    ];
+
+                    if (isNarrow) {
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          buttons[0],
+                          if (buttons.length > 1) ...[
+                            const SizedBox(height: 12),
+                            buttons[1],
+                          ],
+                        ],
+                      );
+                    }
+
+                    return Row(
+                      children: [
+                        Expanded(child: buttons[0]),
+                        if (buttons.length > 1) ...[
+                          const SizedBox(width: 16),
+                          Expanded(child: buttons[1]),
+                        ],
+                      ],
+                    );
+                  },
                 ),
               ],
             ),
@@ -218,9 +273,19 @@ class OrderTrackingScreen extends ConsumerWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text('Preparation Progress', style: Theme.of(context).textTheme.titleLarge),
-              Text('Est. ${order.estimatedPrepMinutes} Mins',
-                  style: const TextStyle(color: EmberColors.primary, fontWeight: FontWeight.bold)),
+              Expanded(
+                child: Text(
+                  'Preparation Progress',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.titleLarge,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                'Est. ${order.estimatedPrepMinutes} Mins',
+                style: const TextStyle(color: EmberColors.primary, fontWeight: FontWeight.bold),
+              ),
             ],
           ),
           const SizedBox(height: 20),
@@ -286,13 +351,18 @@ class OrderTrackingScreen extends ConsumerWidget {
                         ],
                       ),
                       const SizedBox(height: 8),
-                      Text(
-                        stage.label,
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          fontSize: 10,
-                          fontWeight: isCurrent ? FontWeight.bold : FontWeight.normal,
-                          color: isCurrent ? EmberColors.primary : (isPassed ? EmberColors.textMain : EmberColors.textMuted),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 2.0),
+                        child: Text(
+                          stage.label,
+                          textAlign: TextAlign.center,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 10,
+                            fontWeight: isCurrent ? FontWeight.bold : FontWeight.normal,
+                            color: isCurrent ? EmberColors.primary : (isPassed ? EmberColors.textMain : EmberColors.textMuted),
+                          ),
                         ),
                       ),
                     ],

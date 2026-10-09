@@ -76,20 +76,23 @@ class Dish {
 
   factory Dish.fromJson(Map<String, dynamic> json) {
     return Dish(
-      id: json['id'] as String,
-      name: json['name'] as String,
-      category: json['category'] as String,
-      description: json['description'] as String,
-      basePriceCents: json['basePriceCents'] as int,
-      imageUrl: json['imageUrl'] as String,
-      model3dId: json['model3dId'] as String,
+      id: json['id'] as String? ?? 'dish',
+      name: json['name'] as String? ?? 'Gourmet Dish',
+      category: json['category'] as String? ?? 'Main Course',
+      description: json['description'] as String? ?? '',
+      basePriceCents: json['basePriceCents'] as int? ?? 0,
+      imageUrl: json['imageUrl'] as String? ?? '',
+      model3dId: json['model3dId'] as String? ?? (json['id'] as String? ?? 'd1'),
       isAvailable: json['isAvailable'] as bool? ?? true,
       stockCount: json['stockCount'] as int? ?? 0,
       isFeatured: json['isFeatured'] as bool? ?? false,
-      ingredients: List<String>.from(json['ingredients'] as List),
-      customizationGroups: (json['customizationGroups'] as List<dynamic>)
-          .map((e) => CustomizationGroup.fromJson(e as Map<String, dynamic>))
-          .toList(),
+      ingredients: json['ingredients'] != null
+          ? List<String>.from(json['ingredients'] as List)
+          : const [],
+      customizationGroups: (json['customizationGroups'] as List<dynamic>?)
+              ?.map((e) => CustomizationGroup.fromJson(e as Map<String, dynamic>))
+              .toList() ??
+          const [],
     );
   }
 }

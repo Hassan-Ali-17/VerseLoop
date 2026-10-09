@@ -46,14 +46,25 @@ class EmberButton extends StatelessWidget {
     if (icon != null) {
       return Row(
         mainAxisSize: MainAxisSize.min,
+        mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Icon(icon, size: 16),
           const SizedBox(width: 8),
-          Text(label),
+          Flexible(
+            child: Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
         ],
       );
     }
 
-    return Text(label);
+    return Text(
+      label,
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+    );
   }
 }

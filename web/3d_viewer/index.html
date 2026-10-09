@@ -1,0 +1,674 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LoopServe 3D Dish Studio</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      user-select: none;
+    }
+    body, html {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background-color: #111110;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      color: #F4F0E8;
+    }
+    #canvas-container {
+      width: 100%;
+      height: 100%;
+      position: relative;
+    }
+    canvas {
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+    #overlay-controls {
+      position: absolute;
+      bottom: 16px;
+      right: 16px;
+      display: flex;
+      gap: 8px;
+      z-index: 10;
+    }
+    .ctrl-btn {
+      background: rgba(27, 27, 25, 0.85);
+      border: 1px solid #30302C;
+      color: #F4F0E8;
+      padding: 8px 14px;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 500;
+      cursor: pointer;
+      backdrop-filter: blur(8px);
+      transition: all 0.2s ease;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .ctrl-btn:hover {
+      background: #E87532;
+      border-color: #E87532;
+      color: #111110;
+    }
+    #loader-container {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(17, 17, 16, 0.9);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      z-index: 20;
+      transition: opacity 0.4s ease;
+    }
+    .spinner {
+      width: 40px;
+      height: 40px;
+      border: 3px solid #30302C;
+      border-top: 3px solid #E87532;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+    }
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+    .loading-text {
+      margin-top: 12px;
+      font-size: 13px;
+      letter-spacing: 1px;
+      color: #A8A39A;
+      text-transform: uppercase;
+    }
+    #status-badge {
+      position: absolute;
+      top: 16px;
+      left: 16px;
+      padding: 6px 12px;
+      border-radius: 20px;
+      font-size: 11px;
+      background: rgba(27, 27, 25, 0.8);
+      border: 1px solid #30302C;
+      color: #E87532;
+      letter-spacing: 0.5px;
+      z-index: 10;
+    }
+  </style>
+  <!-- Three.js + OrbitControls + GLTFLoader -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+</head>
+<body>
+  <div id="canvas-container">
+    <div id="status-badge">3D STUDIO ACTIVE</div>
+    <div id="loader-container">
+      <div class="spinner"></div>
+      <div class="loading-text" id="loader-text">Rendering 3D Studio Scene...</div>
+    </div>
+    <div id="overlay-controls">
+      <button class="ctrl-btn" id="btn-rotate-left">↺ Rotate Left</button>
+      <button class="ctrl-btn" id="btn-rotate-right">↻ Rotate Right</button>
+      <button class="ctrl-btn" id="btn-reset">⚡ Reset View</button>
+    </div>
+  </div>
+
+  <script>
+    let scene, camera, renderer, controls;
+    let currentDishGroup = null;
+    let currentDishId = 'd1';
+    let currentCustomizations = {};
+    let isAutoRotating = false;
+
+    // Materials dictionary for dynamic custom updates
+    let customMeshes = {};
+
+    function initScene() {
+      const container = document.getElementById('canvas-container');
+      
+      // Scene
+      scene = new THREE.Scene();
+      scene.background = new THREE.Color(0x111110);
+      scene.fog = new THREE.FogExp2(0x111110, 0.08);
+
+      // Camera
+      camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 100);
+      camera.position.set(0, 1.8, 3.2);
+
+      // Renderer
+      renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: "high-performance" });
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+      renderer.shadowMap.enabled = true;
+      renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+      renderer.toneMapping = THREE.ACESFilmicToneMapping;
+      renderer.toneMappingExposure = 1.1;
+      container.appendChild(renderer.domElement);
+
+      // Orbit Controls
+      controls = new THREE.OrbitControls(camera, renderer.domElement);
+      controls.enableDamping = true;
+      controls.dampingFactor = 0.05;
+      controls.maxPolarAngle = Math.PI / 2.05; // Don't go below floor
+      controls.minDistance = 1.2;
+      controls.maxDistance = 6.0;
+      controls.target.set(0, 0.4, 0);
+
+      // Lighting setup for luxury dining presentation
+      setupLighting();
+
+      // Pedestal / Plate base
+      setupPedestal();
+
+      // Window resize handler
+      window.addEventListener('resize', onWindowResize, false);
+
+      // Button Listeners
+      document.getElementById('btn-rotate-left').addEventListener('click', () => {
+        if (currentDishGroup) currentDishGroup.rotation.y -= Math.PI / 4;
+      });
+      document.getElementById('btn-rotate-right').addEventListener('click', () => {
+        if (currentDishGroup) currentDishGroup.rotation.y += Math.PI / 4;
+      });
+      document.getElementById('btn-reset').addEventListener('click', () => {
+        resetCamera();
+      });
+
+      // Default dish render from URL param or fallback
+      const urlParams = new URLSearchParams(window.location.search);
+      const initialDishId = urlParams.get('dishId') || 'd1';
+      loadDishScene(initialDishId, {});
+
+      // Animation Loop
+      animate();
+    }
+
+    function setupLighting() {
+      // Key light - Warm Ember
+      const keyLight = new THREE.DirectionalLight(0xFFD29D, 1.4);
+      keyLight.position.set(2, 4, 3);
+      keyLight.castShadow = true;
+      keyLight.shadow.mapSize.width = 1024;
+      keyLight.shadow.mapSize.height = 1024;
+      keyLight.shadow.bias = -0.0005;
+      scene.add(keyLight);
+
+      // Fill light - Cool Slate
+      const fillLight = new THREE.DirectionalLight(0x708090, 0.6);
+      fillLight.position.set(-3, 2, -2);
+      scene.add(fillLight);
+
+      // Rim / Highlight Light - Ember Accent
+      const rimLight = new THREE.SpotLight(0xE87532, 2.0);
+      rimLight.position.set(0, 3, -3);
+      rimLight.lookAt(0, 0, 0);
+      scene.add(rimLight);
+
+      // Ambient Soft Light
+      const ambientLight = new THREE.AmbientLight(0x222220, 0.8);
+      scene.add(ambientLight);
+    }
+
+    function setupPedestal() {
+      // Matte Charcoal Dish Plate Base
+      const plateGeo = new THREE.CylinderGeometry(1.2, 1.0, 0.08, 64);
+      const plateMat = new THREE.MeshStandardMaterial({
+        color: 0x1B1B19,
+        roughness: 0.4,
+        metalness: 0.1,
+      });
+      const plate = new THREE.Mesh(plateGeo, plateMat);
+      plate.position.y = 0.04;
+      plate.receiveShadow = true;
+      scene.add(plate);
+
+      // Golden Trim Ring
+      const ringGeo = new THREE.TorusGeometry(1.18, 0.012, 16, 64);
+      const ringMat = new THREE.MeshStandardMaterial({
+        color: 0xE87532,
+        roughness: 0.2,
+        metalness: 0.8
+      });
+      const ring = new THREE.Mesh(ringGeo, ringMat);
+      ring.rotation.x = Math.PI / 2;
+      ring.position.y = 0.08;
+      scene.add(ring);
+    }
+
+    function hideLoader() {
+      const loader = document.getElementById('loader-container');
+      if (loader) {
+        loader.style.opacity = '0';
+        setTimeout(() => { loader.style.display = 'none'; }, 400);
+      }
+    }
+
+    function showLoader(msg) {
+      const loader = document.getElementById('loader-container');
+      const text = document.getElementById('loader-text');
+      if (loader && text) {
+        text.innerText = msg || 'Updating 3D Scene...';
+        loader.style.display = 'flex';
+        loader.style.opacity = '1';
+      }
+    }
+
+    function resetCamera() {
+      camera.position.set(0, 1.8, 3.2);
+      controls.target.set(0, 0.4, 0);
+      controls.update();
+      if (currentDishGroup) {
+        currentDishGroup.rotation.set(0, 0, 0);
+      }
+    }
+
+    // Procedural High-Detail 3D Dish Builders
+    function buildBurgerMesh(customs) {
+      const group = new THREE.Group();
+      customMeshes = {};
+
+      const portionScale = customs.portion === 'Double' ? 1.2 : (customs.portion === 'Junior' ? 0.85 : 1.0);
+      group.scale.set(portionScale, portionScale, portionScale);
+
+      // Bottom Bun
+      const bBunGeo = new THREE.CylinderGeometry(0.5, 0.45, 0.12, 32);
+      const bBunMat = new THREE.MeshStandardMaterial({ color: 0xD4A359, roughness: 0.6 });
+      const bBun = new THREE.Mesh(bBunGeo, bBunMat);
+      bBun.position.y = 0.14;
+      bBun.castShadow = true;
+      group.add(bBun);
+
+      // Patty 1
+      const pattyGeo = new THREE.CylinderGeometry(0.52, 0.52, 0.14, 32);
+      const pattyMat = new THREE.MeshStandardMaterial({ color: 0x3B2314, roughness: 0.9 });
+      const patty1 = new THREE.Mesh(pattyGeo, pattyMat);
+      patty1.position.y = 0.27;
+      patty1.castShadow = true;
+      group.add(patty1);
+
+      let currentHeight = 0.34;
+
+      // Double Patty
+      if (customs.portion === 'Double') {
+        const patty2 = new THREE.Mesh(pattyGeo, pattyMat);
+        patty2.position.y = currentHeight + 0.07;
+        patty2.castShadow = true;
+        group.add(patty2);
+        currentHeight += 0.14;
+      }
+
+      // Cheese Layer
+      const cheeseGeo = new THREE.BoxGeometry(0.72, 0.02, 0.72);
+      const cheeseMat = new THREE.MeshStandardMaterial({ color: 0xFFB000, roughness: 0.3 });
+      const cheese = new THREE.Mesh(cheeseGeo, cheeseMat);
+      cheese.rotation.y = Math.PI / 4;
+      cheese.position.y = currentHeight + 0.02;
+      cheese.castShadow = true;
+      cheese.visible = customs.cheese !== 'None';
+      group.add(cheese);
+      customMeshes.cheese = cheese;
+      currentHeight += 0.03;
+
+      // Extra Cheese slice if requested
+      if (customs.cheese === 'Melted Cheddar Extra') {
+        const extraCheese = cheese.clone();
+        extraCheese.rotation.y = Math.PI / 8;
+        extraCheese.position.y = currentHeight + 0.02;
+        group.add(extraCheese);
+        currentHeight += 0.03;
+      }
+
+      // Sauce layer
+      let sauceColor = 0xC82323; // Secret Ember Sauce (default red/amber)
+      if (customs.sauce === 'Truffle Mayo') sauceColor = 0xEFE5D8;
+      if (customs.sauce === 'Smoky BBQ') sauceColor = 0x4A1E0D;
+      if (customs.sauce === 'Spicy Sriracha') sauceColor = 0xE63946;
+
+      const sauceGeo = new THREE.CylinderGeometry(0.48, 0.48, 0.03, 32);
+      const sauceMat = new THREE.MeshStandardMaterial({ color: sauceColor, roughness: 0.2, metalness: 0.2 });
+      const sauce = new THREE.Mesh(sauceGeo, sauceMat);
+      sauce.position.y = currentHeight + 0.025;
+      group.add(sauce);
+      customMeshes.sauce = sauce;
+      currentHeight += 0.04;
+
+      // Lettuce
+      const lettuceGeo = new THREE.CylinderGeometry(0.55, 0.53, 0.04, 16);
+      const lettuceMat = new THREE.MeshStandardMaterial({ color: 0x4E9F3D, roughness: 0.5 });
+      const lettuce = new THREE.Mesh(lettuceGeo, lettuceMat);
+      lettuce.position.y = currentHeight + 0.02;
+      lettuce.rotation.z = 0.05;
+      group.add(lettuce);
+      currentHeight += 0.05;
+
+      // Bacon Add-on
+      if (customs.toppings && customs.toppings.includes('Crispy Bacon')) {
+        const baconGeo = new THREE.BoxGeometry(0.65, 0.02, 0.2);
+        const baconMat = new THREE.MeshStandardMaterial({ color: 0x7A1F1D, roughness: 0.4 });
+        const bacon1 = new THREE.Mesh(baconGeo, baconMat);
+        bacon1.position.y = currentHeight + 0.02;
+        bacon1.rotation.y = 0.3;
+        const bacon2 = bacon1.clone();
+        bacon2.rotation.y = -0.4;
+        group.add(bacon1);
+        group.add(bacon2);
+        currentHeight += 0.04;
+      }
+
+      // Top Bun
+      const tBunGeo = new THREE.SphereGeometry(0.52, 32, 16, 0, Math.PI * 2, 0, Math.PI / 2);
+      const tBunMat = new THREE.MeshStandardMaterial({ color: 0xD4A359, roughness: 0.5 });
+      const tBun = new THREE.Mesh(tBunGeo, tBunMat);
+      tBun.position.y = currentHeight + 0.02;
+      tBun.scale.set(1, 0.65, 1);
+      tBun.castShadow = true;
+      group.add(tBun);
+
+      // Sesame seeds on bun
+      for (let i = 0; i < 18; i++) {
+        const seedGeo = new THREE.SphereGeometry(0.015, 8, 8);
+        const seedMat = new THREE.MeshBasicMaterial({ color: 0xFFF5E4 });
+        const seed = new THREE.Mesh(seedGeo, seedMat);
+        const angle = Math.random() * Math.PI * 2;
+        const rad = Math.random() * 0.35;
+        seed.position.set(Math.cos(angle) * rad, currentHeight + 0.3, Math.sin(angle) * rad);
+        group.add(seed);
+      }
+
+      return group;
+    }
+
+    function buildPizzaMesh(customs) {
+      const group = new THREE.Group();
+      const crustRadius = customs.portion === 'Large 14"' ? 0.95 : 0.75;
+
+      // Pizza Base Crust
+      const crustGeo = new THREE.CylinderGeometry(crustRadius, crustRadius - 0.08, 0.06, 40);
+      const crustMat = new THREE.MeshStandardMaterial({ color: 0xC68B45, roughness: 0.7 });
+      const crust = new THREE.Mesh(crustGeo, crustMat);
+      crust.position.y = 0.11;
+      crust.castShadow = true;
+      group.add(crust);
+
+      // Cheese / Sauce Surface
+      const topGeo = new THREE.CylinderGeometry(crustRadius - 0.06, crustRadius - 0.06, 0.02, 40);
+      const topMat = new THREE.MeshStandardMaterial({ color: 0xF7C04A, roughness: 0.3 });
+      const top = new THREE.Mesh(topGeo, topMat);
+      top.position.y = 0.15;
+      group.add(top);
+
+      // Truffle / Sauce Drizzle
+      let drizzleColor = 0x332211;
+      if (customs.sauce === 'Pesto Base') drizzleColor = 0x2A623D;
+      if (customs.sauce === 'Classic Tomato') drizzleColor = 0xB3395B;
+
+      const drizzleGeo = new THREE.TorusGeometry(crustRadius * 0.5, 0.03, 8, 32);
+      const drizzleMat = new THREE.MeshStandardMaterial({ color: drizzleColor, roughness: 0.3 });
+      const drizzle = new THREE.Mesh(drizzleGeo, drizzleMat);
+      drizzle.rotation.x = Math.PI / 2;
+      drizzle.position.y = 0.165;
+      group.add(drizzle);
+
+      // Topping meshes (Mushroom / Pepperoni)
+      const count = customs.portion === 'Large 14"' ? 16 : 10;
+      for (let i = 0; i < count; i++) {
+        const pepGeo = new THREE.CylinderGeometry(0.1, 0.1, 0.015, 16);
+        const isMushroom = customs.toppings && customs.toppings.includes('Wild Mushrooms');
+        const pepMat = new THREE.MeshStandardMaterial({
+          color: isMushroom ? 0x6D5949 : 0x8B0000,
+          roughness: 0.5
+        });
+        const pep = new THREE.Mesh(pepGeo, pepMat);
+        const angle = (i / count) * Math.PI * 2;
+        const rad = (0.25 + (i % 2) * 0.3) * (crustRadius / 0.8);
+        pep.position.set(Math.cos(angle) * rad, 0.165, Math.sin(angle) * rad);
+        group.add(pep);
+      }
+
+      return group;
+    }
+
+    function buildSteakMesh(customs) {
+      const group = new THREE.Group();
+      const steakScale = customs.portion === '500g Feast' ? 1.3 : 1.0;
+
+      // Steak Meat Block
+      const shape = new THREE.Shape();
+      shape.moveTo(-0.5, -0.3);
+      shape.quadraticCurveTo(-0.6, 0.3, -0.2, 0.4);
+      shape.quadraticCurveTo(0.5, 0.5, 0.6, 0.1);
+      shape.quadraticCurveTo(0.7, -0.4, 0.1, -0.4);
+      shape.quadraticCurveTo(-0.3, -0.4, -0.5, -0.3);
+
+      const extrudeSettings = { depth: 0.18, bevelEnabled: true, bevelSegments: 3, steps: 1, bevelSize: 0.03, bevelThickness: 0.03 };
+      const steakGeo = new THREE.ExtrudeGeometry(shape, extrudeSettings);
+      const steakMat = new THREE.MeshStandardMaterial({ color: 0x4A2511, roughness: 0.4, metalness: 0.1 });
+      const steak = new THREE.Mesh(steakGeo, steakMat);
+      steak.rotation.x = -Math.PI / 2;
+      steak.position.y = 0.15;
+      steak.scale.set(steakScale, steakScale, steakScale);
+      steak.castShadow = true;
+      group.add(steak);
+
+      // Garlic Butter Herb Topping
+      if (customs.sauce === 'Herb Garlic Butter' || customs.sauce === 'Truffle Butter') {
+        const butterGeo = new THREE.BoxGeometry(0.2, 0.08, 0.2);
+        const butterMat = new THREE.MeshStandardMaterial({ color: 0xFFF8DC, roughness: 0.2 });
+        const butter = new THREE.Mesh(butterGeo, butterMat);
+        butter.position.set(0, 0.28, 0);
+        group.add(butter);
+      }
+
+      // Side dish representation
+      if (customs.side === 'Truffle Fries') {
+        for (let i = 0; i < 8; i++) {
+          const fryGeo = new THREE.BoxGeometry(0.35, 0.04, 0.04);
+          const fryMat = new THREE.MeshStandardMaterial({ color: 0xE5A93C, roughness: 0.5 });
+          const fry = new THREE.Mesh(fryGeo, fryMat);
+          fry.position.set(-0.7 + (i % 3) * 0.1, 0.12 + Math.floor(i / 3) * 0.04, -0.3 + (i % 2) * 0.2);
+          fry.rotation.y = Math.random() * 0.5;
+          group.add(fry);
+        }
+      }
+
+      return group;
+    }
+
+    function buildRamenMesh(customs) {
+      const group = new THREE.Group();
+
+      // Ramen Bowl
+      const bowlGeo = new THREE.CylinderGeometry(0.8, 0.4, 0.5, 32, 1, true);
+      const bowlMat = new THREE.MeshStandardMaterial({ color: 0x1A1A18, roughness: 0.2, side: THREE.DoubleSide });
+      const bowl = new THREE.Mesh(bowlGeo, bowlMat);
+      bowl.position.y = 0.33;
+      bowl.castShadow = true;
+      group.add(bowl);
+
+      // Bowl Interior Floor
+      const bottomGeo = new THREE.CylinderGeometry(0.4, 0.4, 0.02, 32);
+      const bottom = new THREE.Mesh(bottomGeo, bowlMat);
+      bottom.position.y = 0.09;
+      group.add(bottom);
+
+      // Broth Liquid Surface
+      let brothColor = 0xC8963E; // Tonkotsu Golden
+      if (customs.sauce === 'Spicy Miso') brothColor = 0xB83B1D;
+      if (customs.sauce === 'Black Garlic Oil') brothColor = 0x221815;
+
+      const brothGeo = new THREE.CylinderGeometry(0.72, 0.72, 0.02, 32);
+      const brothMat = new THREE.MeshStandardMaterial({ color: brothColor, roughness: 0.1, metalness: 0.1 });
+      const broth = new THREE.Mesh(brothGeo, brothMat);
+      broth.position.y = 0.45;
+      group.add(broth);
+
+      // Soft Boiled Egg Half
+      const eggGeo = new THREE.SphereGeometry(0.14, 16, 16, 0, Math.PI * 2, 0, Math.PI / 2);
+      const eggMat = new THREE.MeshStandardMaterial({ color: 0xFFFFFF });
+      const egg = new THREE.Mesh(eggGeo, eggMat);
+      egg.rotation.x = Math.PI;
+      egg.position.set(0.2, 0.47, 0.1);
+      group.add(egg);
+
+      const yolkGeo = new THREE.SphereGeometry(0.08, 16, 16, 0, Math.PI * 2, 0, Math.PI / 2);
+      const yolkMat = new THREE.MeshStandardMaterial({ color: 0xFF6B00 });
+      const yolk = new THREE.Mesh(yolkGeo, yolkMat);
+      yolk.rotation.x = Math.PI;
+      yolk.position.set(0.2, 0.475, 0.1);
+      group.add(yolk);
+
+      // Chashu Pork Slices
+      const chashuGeo = new THREE.CylinderGeometry(0.22, 0.22, 0.03, 24);
+      const chashuMat = new THREE.MeshStandardMaterial({ color: 0x6E3C21, roughness: 0.6 });
+      const chashu = new THREE.Mesh(chashuGeo, chashuMat);
+      chashu.position.set(-0.25, 0.47, -0.15);
+      chashu.rotation.z = 0.15;
+      group.add(chashu);
+
+      return group;
+    }
+
+    function buildDessertMesh(customs) {
+      const group = new THREE.Group();
+
+      // Cake Base Cylinder
+      const cakeGeo = new THREE.CylinderGeometry(0.5, 0.5, 0.35, 32);
+      const cakeMat = new THREE.MeshStandardMaterial({ color: 0x2A1508, roughness: 0.8 });
+      const cake = new THREE.Mesh(cakeGeo, cakeMat);
+      cake.position.y = 0.25;
+      cake.castShadow = true;
+      group.add(cake);
+
+      // Molten Ganache Top Drizzle
+      const ganacheGeo = new THREE.CylinderGeometry(0.51, 0.52, 0.08, 32);
+      const ganacheMat = new THREE.MeshStandardMaterial({ color: 0x140A04, roughness: 0.1 });
+      const ganache = new THREE.Mesh(ganacheGeo, ganacheMat);
+      ganache.position.y = 0.4;
+      group.add(ganache);
+
+      // Vanilla Ice Cream Scoop
+      if (customs.side === 'Vanilla Bean Ice Cream' || customs.portion !== 'Solo Cake') {
+        const scoopGeo = new THREE.SphereGeometry(0.22, 24, 24);
+        const scoopMat = new THREE.MeshStandardMaterial({ color: 0xFFFAF0, roughness: 0.4 });
+        const scoop = new THREE.Mesh(scoopGeo, scoopMat);
+        scoop.position.set(0, 0.55, 0);
+        scoop.castShadow = true;
+        group.add(scoop);
+      }
+
+      // Gold Leaf / Raspberry Garnish
+      const berryGeo = new THREE.SphereGeometry(0.06, 12, 12);
+      const berryMat = new THREE.MeshStandardMaterial({ color: 0xB00B29, roughness: 0.3 });
+      const berry = new THREE.Mesh(berryGeo, berryMat);
+      berry.position.set(0.18, 0.45, 0.18);
+      group.add(berry);
+
+      return group;
+    }
+
+    function loadDishScene(dishId, customizations) {
+      showLoader('Loading 3D Dish Studio...');
+      currentDishId = dishId;
+      currentCustomizations = customizations || {};
+
+      if (currentDishGroup) {
+        scene.remove(currentDishGroup);
+        currentDishGroup = null;
+      }
+
+      setTimeout(() => {
+        switch(dishId) {
+          case 'd2':
+            currentDishGroup = buildPizzaMesh(currentCustomizations);
+            break;
+          case 'd3':
+            currentDishGroup = buildSteakMesh(currentCustomizations);
+            break;
+          case 'd4':
+            currentDishGroup = buildRamenMesh(currentCustomizations);
+            break;
+          case 'd5':
+            currentDishGroup = buildDessertMesh(currentCustomizations);
+            break;
+          case 'd1':
+          default:
+            currentDishGroup = buildBurgerMesh(currentCustomizations);
+            break;
+        }
+
+        scene.add(currentDishGroup);
+        hideLoader();
+      }, 200);
+    }
+
+    function updateCustomization(customizations) {
+      currentCustomizations = customizations || {};
+      if (currentDishId) {
+        loadDishScene(currentDishId, currentCustomizations);
+      }
+    }
+
+    function onWindowResize() {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    }
+
+    function animate() {
+      requestAnimationFrame(animate);
+      controls.update();
+
+      if (isAutoRotating && currentDishGroup) {
+        currentDishGroup.rotation.y += 0.005;
+      }
+
+      renderer.render(scene, camera);
+    }
+
+    // Communication bridge with Flutter
+    window.addEventListener('message', function(event) {
+      const data = event.data;
+      if (!data) return;
+
+      if (typeof data === 'string') {
+        try {
+          const parsed = JSON.parse(data);
+          handleFlutterAction(parsed);
+        } catch(e) {}
+      } else if (typeof data === 'object') {
+        handleFlutterAction(data);
+      }
+    });
+
+    function handleFlutterAction(action) {
+      switch (action.type) {
+        case 'LOAD_DISH':
+          loadDishScene(action.dishId, action.customizations);
+          break;
+        case 'UPDATE_CUSTOMIZATION':
+          updateCustomization(action.customizations);
+          break;
+        case 'RESET_CAMERA':
+          resetCamera();
+          break;
+        case 'SET_AUTO_ROTATE':
+          isAutoRotating = !!action.enabled;
+          break;
+      }
+    }
+
+    // Initialize on load
+    window.onload = initScene;
+  </script>
+</body>
+</html>

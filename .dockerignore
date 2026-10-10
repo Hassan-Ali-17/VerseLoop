@@ -1,0 +1,11 @@
+.git
+.dart_tool
+build
+android
+ios
+windows
+web
+.vscode
+*.apk
+__pycache__
+*.pyc
